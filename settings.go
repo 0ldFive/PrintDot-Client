@@ -5,7 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
+
+	"github.com/cloudfoundry/jibber_jabber"
 )
 
 type AppSettings struct {
@@ -33,10 +36,17 @@ func NewSettingsManager() *SettingsManager {
 	appConfigDir := filepath.Join(configDir, "print-dot-client")
 	os.MkdirAll(appConfigDir, 0755)
 
+	// Detect language
+	defaultLang := "en-US"
+	userLang, err := jibber_jabber.DetectLanguage()
+	if err == nil && strings.ToLower(userLang) == "zh" {
+		defaultLang = "zh-CN"
+	}
+
 	sm := &SettingsManager{
 		filePath: filepath.Join(appConfigDir, "settings.json"),
 		settings: AppSettings{
-			Language:  "zh-CN",
+			Language:  defaultLang,
 			AutoStart: false,
 		},
 	}
