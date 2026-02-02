@@ -239,7 +239,7 @@ func (a *App) CreateMenu(lang string) *menu.Menu {
 
 	// Settings (设置)
 	SettingsMenu := appMenu.AddSubmenu(settingsTitle)
-	SettingsMenu.AddText(settingsTitle, keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
+	SettingsMenu.AddText(settingsTitle, keys.CmdOrCtrl("i"), func(_ *menu.CallbackData) {
 		a.ShowSettings()
 	})
 
