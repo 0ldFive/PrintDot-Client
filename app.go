@@ -3,20 +3,26 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
 type App struct {
-	ctx    context.Context
-	bridge *Bridge
+	ctx     context.Context
+	bridge  *Bridge
+	AppMode string
+	LogPort int
 }
 
 // NewApp creates a new App application struct
-func NewApp() *App {
+func NewApp(mode string, logPort int) *App {
 	return &App{
-		bridge: NewBridge(),
+		bridge:  NewBridge(),
+		AppMode: mode,
+		LogPort: logPort,
 	}
 }
 
@@ -24,6 +30,12 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+
+	if a.AppMode == "logs" {
+		// In logs mode, we don't start the bridge or log server
+		return
+	}
+
 	// Setup logger to emit events
 	a.bridge.SetLogger(func(msg string) {
 		runtime.EventsEmit(a.ctx, "log", msg)
@@ -57,9 +69,26 @@ func (a *App) Quit() {
 
 func (a *App) ShowLogs() {
 	if a.bridge.logPort > 0 {
-		url := fmt.Sprintf("http://localhost:%d/logs", a.bridge.logPort)
-		runtime.BrowserOpenURL(a.ctx, url)
+		// Spawn a new process of ourselves with special flags
+		exe, err := os.Executable()
+		if err != nil {
+			a.bridge.Log(fmt.Sprintf("Failed to get executable: %v", err))
+			return
+		}
+
+		cmd := exec.Command(exe, "logs", fmt.Sprintf("%d", a.bridge.logPort))
+		if err := cmd.Start(); err != nil {
+			a.bridge.Log(fmt.Sprintf("Failed to spawn logs window: %v", err))
+		}
 	} else {
 		a.bridge.Log("Log server not running")
 	}
+}
+
+func (a *App) GetAppMode() string {
+	return a.AppMode
+}
+
+func (a *App) GetLogPort() int {
+	return a.LogPort
 }

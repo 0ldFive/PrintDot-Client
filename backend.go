@@ -209,6 +209,7 @@ func (b *Bridge) StartLogServer() error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/logs", b.handleLogs)
+	mux.HandleFunc("/api/logs", b.handleLogsJSON)
 
 	b.logServer = &http.Server{
 		Handler: mux,
@@ -279,4 +280,16 @@ func (b *Bridge) handleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t.Execute(w, currentLogs)
+}
+
+func (b *Bridge) handleLogsJSON(w http.ResponseWriter, r *http.Request) {
+	b.logsMu.Lock()
+	// Copy logs
+	currentLogs := make([]string, len(b.logs))
+	copy(currentLogs, b.logs)
+	b.logsMu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*") // Allow child process to fetch
+	json.NewEncoder(w).Encode(currentLogs)
 }

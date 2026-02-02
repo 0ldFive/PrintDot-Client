@@ -11,11 +11,13 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    IMaterialSymbolsDeleteOutline: typeof import('~icons/material-symbols/delete-outline')['default']
     IMaterialSymbolsDns: typeof import('~icons/material-symbols/dns')['default']
     IMaterialSymbolsPlayArrow: typeof import('~icons/material-symbols/play-arrow')['default']
     IMaterialSymbolsPrint: typeof import('~icons/material-symbols/print')['default']
     IMaterialSymbolsPrintConnect: typeof import('~icons/material-symbols/print-connect')['default']
     IMaterialSymbolsRefresh: typeof import('~icons/material-symbols/refresh')['default']
     IMaterialSymbolsStop: typeof import('~icons/material-symbols/stop')['default']
+    IMaterialSymbolsTerminal: typeof import('~icons/material-symbols/terminal')['default']
   }
 }
