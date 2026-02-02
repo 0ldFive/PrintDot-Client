@@ -20,11 +20,12 @@ var usageGuides embed.FS
 
 // App struct
 type App struct {
-	ctx      context.Context
-	AppMode  string
-	LogPort  int
-	bridge   *Bridge
-	settings *SettingsManager
+	ctx        context.Context
+	AppMode    string
+	LogPort    int
+	bridge     *Bridge
+	settings   *SettingsManager
+	isQuitting bool
 
 	logsMu      sync.Mutex
 	settingsCmd *exec.Cmd
@@ -122,6 +123,7 @@ func (a *App) Cleanup() {
 }
 
 func (a *App) Quit() {
+	a.isQuitting = true
 	if a.ctx != nil {
 		runtime.Quit(a.ctx)
 	} else {

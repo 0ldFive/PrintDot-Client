@@ -72,8 +72,12 @@ func main() {
 		appMenu = app.CreateMenu(currentLang)
 
 		onBeforeClose = func(ctx context.Context) bool {
-			app.Cleanup()
-			return false
+			if app.isQuitting {
+				app.Cleanup()
+				return false
+			}
+			runtime.WindowHide(ctx)
+			return true
 		}
 
 		// Start system tray
@@ -94,13 +98,7 @@ func main() {
 							// runtime.WindowSetFocus(app.ctx) // Not available in all versions
 						}
 					case <-mQuit.ClickedCh:
-						app.Cleanup()
-						if app.ctx != nil {
-							runtime.Quit(app.ctx)
-						} else {
-							systray.Quit()
-							os.Exit(0)
-						}
+						app.Quit()
 					}
 				}
 			}()

@@ -29,8 +29,8 @@ After startup, the interface provides the following configuration options:
 - **Connection URL**: After the service starts, the interface displays the full connection address (e.g., `ws://localhost:1122/ws?key=...`).
 
 **Operation Instructions**:
-- **Exit Program**: Click the main window close button (X), use the menu bar `Menu` -> `Quit` (Ctrl+Q), or use the tray menu `Quit` to completely exit the program (including the log child window).
-- **Run in Background**: After startup, an icon appears in the system tray area, which can be used to quickly recall the window or exit.
+- **Exit Program**: Use the menu bar `Menu` -> `Quit` (Ctrl+Q) or the tray menu `Quit` to completely exit the program.
+- **Run in Background**: Clicking the main window close button (X) will not exit the program but minimize it to the system tray. An icon appears in the system tray area, which can be used to quickly recall the window or exit.
 - **Tray Menu**: Right-click the system tray icon to select `Show Main Window` or `Quit`.
 - **View Logs**: Use the menu bar `Menu` -> `System Logs` (Ctrl+L) to open an independent log window to view real-time logs.
 
