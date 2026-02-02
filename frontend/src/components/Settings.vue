@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { GetSettings, SaveSettings, Restart, GetLogPort } from '../../wailsjs/go/main/App'
+import { WindowHide } from '../../wailsjs/runtime/runtime'
 import { main } from '../../wailsjs/go/models'
 
 const { t, locale } = useI18n()
@@ -72,7 +73,7 @@ const saveSettings = async () => {
 </script>
 
 <template>
-  <div class="h-screen w-screen bg-gray-50 flex flex-col p-6 relative">
+  <div class="h-screen w-screen bg-gray-50 flex flex-col p-4 relative">
     
     <h1 class="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-2">
       <i-material-symbols-settings-outline />
@@ -123,20 +124,23 @@ const saveSettings = async () => {
     </div>
 
     <!-- Save Button -->
-    <div class="flex items-center gap-4 pt-4 border-t border-gray-200">
+    <div class="flex items-center justify-end gap-2 pt-3 border-t border-gray-200">
+      <button 
+        @click="WindowHide"
+        class="bg-white hover:bg-gray-50 text-gray-700 font-medium py-1.5 px-4 rounded-md border border-gray-300 shadow-sm transition-colors duration-200 text-sm"
+      >
+        {{ t('settings.cancel') }}
+      </button>
+
       <button 
         @click="saveSettings" 
         :disabled="isSaving"
-        class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-6 rounded-md shadow-sm transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-4 rounded-md shadow-sm transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
       >
         <i-material-symbols-save-outline v-if="!isSaving" />
         <i-material-symbols-refresh v-else class="animate-spin" />
         {{ isSaving ? t('settings.saving') || 'Saving...' : t('settings.save') }}
       </button>
-      
-      <span v-if="saveStatus" class="text-sm font-medium" :class="saveStatus.includes('Error') ? 'text-red-600' : 'text-green-600'">
-        {{ saveStatus }}
-      </span>
     </div>
   </div>
 </template>

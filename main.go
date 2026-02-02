@@ -60,20 +60,10 @@ func main() {
 	// Configure based on mode
 	title := "print-dot-client"
 	width := 380
-	height := 600
+	height := 660
 	minWidth := 380
 	minHeight := 600
 	var onBeforeClose func(ctx context.Context) bool
-
-	// Restore window state from settings if in main mode
-	if mode == "main" {
-		s := sm.Get()
-		if s.WindowWidth > 0 && s.WindowHeight > 0 {
-			width = s.WindowWidth
-			height = s.WindowHeight
-		}
-		// X and Y will be handled in OnStartup
-	}
 
 	var appMenu *menu.Menu
 
@@ -137,10 +127,6 @@ func main() {
 		minHeight = 400
 	} else if mode == "settings" {
 		title = "Settings"
-		width = 500
-		height = 600
-		minWidth = 400
-		minHeight = 500
 	}
 
 	// Create application with options

@@ -9,7 +9,7 @@
     "password": "Password",
     "save": "Save Settings",
     "saving": "Saving...",
-    "saved": "Saved! Restarting...",
+    "saved": "Saved",
     "restart": "Restart Now",
     "confirmRestart": "Restart Required",
     "confirmRestartMessage": "Applying these settings requires a restart. Do you want to restart now?",
