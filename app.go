@@ -67,13 +67,9 @@ func (a *App) startup(ctx context.Context) {
 		runtime.EventsEmit(ctx, "client_connected", clientInfo)
 
 		// System Notification
-		lang := a.settings.Get().Language
-		title := "PrintDot Client"
-		msg := fmt.Sprintf("Client connected: %s", clientInfo)
-		if lang == "zh-CN" {
-			title = "PrintDot 打印服务"
-			msg = fmt.Sprintf("客户端已连接: %s", clientInfo)
-		}
+		LoadLocales(a.settings.Get().Language)
+		title := T("notification.title")
+		msg := T("notification.connected", clientInfo)
 
 		// Use beeep
 		go func() {
@@ -212,22 +208,16 @@ func (a *App) GetLogPort() int {
 }
 
 func (a *App) CreateMenu(lang string) *menu.Menu {
+	// Ensure locales are loaded
+	LoadLocales(lang)
 	appMenu := menu.NewMenu()
 
 	// Main App Configuration
-	menuTitle := "Menu"
-	settingsTitle := "Settings"
-	logsTitle := "System Logs"
-	helpTitle := "Help"
-	quitTitle := "Quit"
-
-	if lang == "zh-CN" {
-		menuTitle = "菜单"
-		settingsTitle = "设置"
-		logsTitle = "系统日志"
-		helpTitle = "帮助"
-		quitTitle = "退出"
-	}
+	menuTitle := T("menu.title")
+	settingsTitle := T("menu.settings")
+	logsTitle := T("menu.logs")
+	helpTitle := T("menu.help")
+	quitTitle := T("menu.quit")
 
 	// Menu (菜单)
 	MenuMenu := appMenu.AddSubmenu(menuTitle)
@@ -265,6 +255,8 @@ func (a *App) UpdateUI(lang string) {
 func (a *App) Reload() {
 	// Reload settings from disk
 	a.settings.Load()
+	// Reload locale
+	LoadLocales(a.settings.Get().Language)
 	// Update menu and UI
 	a.UpdateUI(a.settings.Get().Language)
 	a.bridge.Log("Settings reloaded")

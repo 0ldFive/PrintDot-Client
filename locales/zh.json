@@ -1,0 +1,25 @@
+{
+  "menu": {
+    "title": "菜单",
+    "settings": "设置",
+    "logs": "系统日志",
+    "help": "帮助",
+    "quit": "退出"
+  },
+  "tray": {
+    "show": "显示主窗口",
+    "quit": "退出",
+    "title": "PrintDot 打印服务",
+    "tooltip": "PrintDot 打印服务"
+  },
+  "window": {
+    "logs": "系统日志",
+    "help": "帮助 - 使用指南",
+    "settings": "设置",
+    "main": "PrintDot 打印服务"
+  },
+  "notification": {
+    "title": "PrintDot 打印服务",
+    "connected": "客户端已连接: %s"
+  }
+}

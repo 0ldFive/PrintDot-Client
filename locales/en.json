@@ -1,0 +1,25 @@
+{
+  "menu": {
+    "title": "Menu",
+    "settings": "Settings",
+    "logs": "System Logs",
+    "help": "Help",
+    "quit": "Quit"
+  },
+  "tray": {
+    "show": "Show Main Window",
+    "quit": "Quit",
+    "title": "PrintDot Client",
+    "tooltip": "PrintDot Client"
+  },
+  "window": {
+    "logs": "System Logs",
+    "help": "Help - Usage Guide",
+    "settings": "Settings",
+    "main": "PrintDot Client"
+  },
+  "notification": {
+    "title": "PrintDot Client",
+    "connected": "Client connected: %s"
+  }
+}

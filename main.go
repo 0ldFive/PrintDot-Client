@@ -56,13 +56,10 @@ func main() {
 	// Load settings to determine menu language
 	sm := NewSettingsManager()
 	currentLang := sm.Get().Language
+	LoadLocales(currentLang)
 
 	// Configure based on mode
-	title := "PrintDot Client"
-	if currentLang == "zh-CN" {
-		title = "PrintDot 客户端"
-	}
-
+	title := T("window.main")
 	width := 380
 	height := 660
 	minWidth := 380
@@ -82,18 +79,11 @@ func main() {
 		// Start system tray
 		go systray.Run(func() {
 			systray.SetIcon(icon)
-			systray.SetTitle("PrintDot Client")
-			systray.SetTooltip("PrintDot Client")
+			systray.SetTitle(T("tray.title"))
+			systray.SetTooltip(T("tray.tooltip"))
 
-			showTitle := "Show Main Window"
-			quitTitle := "Quit"
-			if currentLang == "zh-CN" {
-				showTitle = "显示主窗口"
-				quitTitle = "退出"
-			}
-
-			mShow := systray.AddMenuItem(showTitle, showTitle)
-			mQuit := systray.AddMenuItem(quitTitle, quitTitle)
+			mShow := systray.AddMenuItem(T("tray.show"), T("tray.show"))
+			mQuit := systray.AddMenuItem(T("tray.quit"), T("tray.quit"))
 
 			go func() {
 				for {
@@ -119,27 +109,18 @@ func main() {
 		})
 	} else if mode == "logs" {
 		// Logs Window Configuration
-		title = "System Logs"
-		if currentLang == "zh-CN" {
-			title = "系统日志"
-		}
+		title = T("window.logs")
 		width = 700
 		height = 500
 		// No special menu or close behavior for logs window (it just closes)
 	} else if mode == "help" {
-		title = "Help - Usage Guide"
-		if currentLang == "zh-CN" {
-			title = "帮助 - 使用指南"
-		}
+		title = T("window.help")
 		width = 800
 		height = 600
 		minWidth = 600
 		minHeight = 400
 	} else if mode == "settings" {
-		title = "Settings"
-		if currentLang == "zh-CN" {
-			title = "设置"
-		}
+		title = T("window.settings")
 	}
 
 	// Create application with options
