@@ -10,6 +10,10 @@ export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
 
+export function Quit() {
+  return window['go']['main']['App']['Quit']();
+}
+
 export function StartServer(arg1, arg2) {
   return window['go']['main']['App']['StartServer'](arg1, arg2);
 }

@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"embed"
 
 	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/menu"
+	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
@@ -15,18 +20,41 @@ func main() {
 	// Create an instance of the app structure
 	app := NewApp()
 
+	var isQuitting bool
+
+	// Create application menu
+	appMenu := menu.NewMenu()
+	FileMenu := appMenu.AddSubmenu("File")
+	FileMenu.AddText("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
+		isQuitting = true
+		app.Quit()
+	})
+
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:  "print-dot-client",
-		Width:  1024,
-		Height: 768,
+		Width:  600,
+		Height: 500,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		OnStartup:        app.startup,
+		OnBeforeClose: func(ctx context.Context) bool {
+			if isQuitting {
+				return false
+			}
+			runtime.WindowMinimise(ctx)
+			return true
+		},
+		Menu: appMenu,
 		Bind: []interface{}{
 			app,
+		},
+		Windows: &windows.Options{
+			WebviewIsTransparent: false,
+			WindowIsTranslucent:  false,
+			BackdropType:         windows.Mica,
 		},
 	})
 

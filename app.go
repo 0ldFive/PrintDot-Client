@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -28,7 +29,7 @@ func (a *App) startup(ctx context.Context) {
 		runtime.EventsEmit(a.ctx, "log", msg)
 		fmt.Println(msg)
 	})
-	
+
 	a.bridge.Log("Application started")
 }
 
@@ -47,4 +48,8 @@ func (a *App) StartServer(port string, key string) error {
 
 func (a *App) StopServer() error {
 	return a.bridge.StopServer()
+}
+
+func (a *App) Quit() {
+	runtime.Quit(a.ctx)
 }

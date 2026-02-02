@@ -2,15 +2,15 @@
 
 
 html {
-    background-color: rgba(27, 38, 54, 1);
+    background-color: white;
     text-align: center;
-    color: white;
+    color: #1a202c;
 }
 
 body {
     margin: 0;
-    color: white;
-    font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    color: #1a202c;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
     "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
     sans-serif;
 }
