@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	sys_runtime "runtime"
 
 	"os"
 	"strconv"
@@ -23,6 +24,9 @@ var assets embed.FS
 
 //go:embed build/appicon.png
 var icon []byte
+
+//go:embed build/windows/icon.ico
+var iconIco []byte
 
 func main() {
 	// Check command line args
@@ -82,7 +86,11 @@ func main() {
 
 		// Start system tray
 		go systray.Run(func() {
-			systray.SetIcon(icon)
+			if sys_runtime.GOOS == "windows" {
+				systray.SetIcon(iconIco)
+			} else {
+				systray.SetIcon(icon)
+			}
 			systray.SetTitle(T("tray.title"))
 			systray.SetTooltip(T("tray.tooltip"))
 
