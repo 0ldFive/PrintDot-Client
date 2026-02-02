@@ -135,6 +135,13 @@ func main() {
 				runtime.WindowShow(app.ctx)
 			},
 		}
+	} else {
+		appOptions.SingleInstanceLock = &options.SingleInstanceLock{
+			UniqueId: "56006c0a-0498-4228-a320-c2409044a14e-logs",
+			OnSecondInstanceLaunch: func(secondInstanceData options.SecondInstanceData) {
+				runtime.WindowShow(app.ctx)
+			},
+		}
 	}
 
 	err := wails.Run(appOptions)

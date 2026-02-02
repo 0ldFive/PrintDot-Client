@@ -87,7 +87,12 @@ func (a *App) ShowLogs() {
 	defer a.logsMu.Unlock()
 
 	if a.logsCmd != nil {
-		a.bridge.Log("Logs window already open")
+		a.bridge.Log("Logs window already open, bringing to front")
+		// Spawn a trigger process to activate SingleInstanceLock on the existing window
+		exe, err := os.Executable()
+		if err == nil {
+			exec.Command(exe, "logs", fmt.Sprintf("%d", a.bridge.logPort)).Start()
+		}
 		return
 	}
 
