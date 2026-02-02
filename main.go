@@ -48,6 +48,10 @@ func main() {
 	// Create an instance of the app structure
 	app := NewApp(mode, logPort)
 
+	// Load settings to determine menu language
+	sm := NewSettingsManager()
+	currentLang := sm.Get().Language
+
 	// Configure based on mode
 	title := "print-dot-client"
 	width := 380
@@ -60,19 +64,33 @@ func main() {
 
 	if mode == "main" {
 		// Main App Configuration
-		FileMenu := appMenu.AddSubmenu("Menu")
-		FileMenu.AddText("Settings", keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
+		menuTitle := "Menu"
+		settingsTitle := "Settings"
+		logsTitle := "System Logs"
+		helpTitle := "Help"
+		quitTitle := "Quit"
+
+		if currentLang == "zh-CN" {
+			menuTitle = "菜单"
+			settingsTitle = "设置"
+			logsTitle = "系统日志"
+			helpTitle = "帮助"
+			quitTitle = "退出"
+		}
+
+		FileMenu := appMenu.AddSubmenu(menuTitle)
+		FileMenu.AddText(settingsTitle, keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
 			app.ShowSettings()
 		})
-		FileMenu.AddText("System Logs", keys.CmdOrCtrl("l"), func(_ *menu.CallbackData) {
+		FileMenu.AddText(logsTitle, keys.CmdOrCtrl("l"), func(_ *menu.CallbackData) {
 			app.ShowLogs()
 		})
 		FileMenu.AddSeparator()
-		FileMenu.AddText("Help", keys.CmdOrCtrl("h"), func(_ *menu.CallbackData) {
+		FileMenu.AddText(helpTitle, keys.CmdOrCtrl("h"), func(_ *menu.CallbackData) {
 			app.ShowHelp()
 		})
 		FileMenu.AddSeparator()
-		FileMenu.AddText("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
+		FileMenu.AddText(quitTitle, keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
 			app.Quit()
 		})
 
@@ -87,8 +105,15 @@ func main() {
 			systray.SetTitle("PrintDot Client")
 			systray.SetTooltip("PrintDot Client")
 
-			mShow := systray.AddMenuItem("Show Main Window", "Show the application window")
-			mQuit := systray.AddMenuItem("Quit", "Quit the application")
+			showTitle := "Show Main Window"
+			quitTitle := "Quit"
+			if currentLang == "zh-CN" {
+				showTitle = "显示主窗口"
+				quitTitle = "退出"
+			}
+
+			mShow := systray.AddMenuItem(showTitle, showTitle)
+			mQuit := systray.AddMenuItem(quitTitle, quitTitle)
 
 			go func() {
 				for {

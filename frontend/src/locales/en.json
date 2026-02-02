@@ -10,5 +10,27 @@
     "save": "Save Settings",
     "saved": "Saved! Restarting...",
     "restart": "Restart Now"
+  },
+  "main": {
+    "title": "PrintDot Client",
+    "subtitle": "WebSocket Printer Bridge",
+    "clients": "Clients",
+    "serverControl": "Server Control",
+    "port": "Port",
+    "secretKey": "Secret Key (Optional)",
+    "placeholderKey": "Leave empty for no auth",
+    "startServer": "Start Server",
+    "stopServer": "Stop Server",
+    "connectionUrl": "Connection URL",
+    "availablePrinters": "Available Printers",
+    "refresh": "Refresh",
+    "loading": "Loading...",
+    "noPrinters": "No printers found."
+  },
+  "logs": {
+    "title": "System Logs",
+    "subtitle": "Live system events",
+    "clearAll": "Clear All",
+    "empty": "No logs available yet..."
   }
 }
