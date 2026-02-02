@@ -1,52 +1,79 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { GetSettings, SaveSettings, Restart } from '../../wailsjs/go/main/App'
+import { GetSettings, SaveSettings, Restart, GetLogPort } from '../../wailsjs/go/main/App'
+import { main } from '../../wailsjs/go/models'
 
 const { t, locale } = useI18n()
 
-const settings = ref({
+const settings = ref(new main.AppSettings({
   language: 'zh-CN',
   autoStart: false,
   remoteServer: '',
   remoteUser: '',
-  remotePassword: ''
-})
+  remotePassword: '',
+  windowWidth: 0,
+  windowHeight: 0,
+  windowX: 0,
+  windowY: 0,
+  maximized: false
+}))
 
 const saveStatus = ref('')
+const logPort = ref(0)
 
 onMounted(async () => {
   try {
     const s = await GetSettings()
     settings.value = s
     locale.value = s.language
+    logPort.value = await GetLogPort()
   } catch (e) {
     console.error(e)
   }
 })
 
-const save = async () => {
+const isSaving = ref(false)
+
+const saveSettings = async () => {
+  if (isSaving.value) return
+  isSaving.value = true
+  saveStatus.value = t('settings.saving') || 'Saving...'
+  
   try {
-    // Save settings first
+    // Save settings
     await SaveSettings(settings.value)
     
-    // Show restart message
-    saveStatus.value = t('settings.saved')
+    // Update locale immediately in this window
+    locale.value = settings.value.language
     
-    // Wait briefly and restart
-    setTimeout(async () => {
-      await Restart()
-    }, 1500)
+    // Notify main process to reload settings
+    try {
+      if (logPort.value > 0) {
+        await fetch(`http://localhost:${logPort.value}/api/reload`, { method: 'POST' })
+      }
+    } catch (e) {
+      console.log("Main process reload trigger failed", e)
+    }
+
+    saveStatus.value = t('settings.saved') || 'Saved'
+    
+    setTimeout(() => {
+      saveStatus.value = ''
+      isSaving.value = false
+    }, 2000)
     
   } catch (e) {
     console.error(e)
     saveStatus.value = 'Error saving settings'
+    isSaving.value = false
   }
 }
 </script>
 
 <template>
-  <div class="h-screen w-screen bg-gray-50 flex flex-col p-6">
+  <div class="h-screen w-screen bg-gray-50 flex flex-col p-6 relative">
+    
     <h1 class="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-2">
       <i-material-symbols-settings-outline />
       {{ t('settings.title') }}
@@ -95,13 +122,21 @@ const save = async () => {
 
     </div>
 
-    <div class="mt-6 flex items-center justify-between">
-      <span class="text-green-600 text-sm font-medium transition-opacity duration-500" :class="saveStatus ? 'opacity-100' : 'opacity-0'">
+    <!-- Save Button -->
+    <div class="flex items-center gap-4 pt-4 border-t border-gray-200">
+      <button 
+        @click="saveSettings" 
+        :disabled="isSaving"
+        class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-6 rounded-md shadow-sm transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <i-material-symbols-save-outline v-if="!isSaving" />
+        <i-material-symbols-refresh v-else class="animate-spin" />
+        {{ isSaving ? t('settings.saving') || 'Saving...' : t('settings.save') }}
+      </button>
+      
+      <span v-if="saveStatus" class="text-sm font-medium" :class="saveStatus.includes('Error') ? 'text-red-600' : 'text-green-600'">
         {{ saveStatus }}
       </span>
-      <button @click="save" class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors shadow-sm font-medium text-sm">
-        {{ t('settings.save') }}
-      </button>
     </div>
   </div>
 </template>

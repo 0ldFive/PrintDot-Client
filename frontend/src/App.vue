@@ -116,6 +116,18 @@ onMounted(async () => {
     EventsOn("client_count", (count: number) => {
       clientCount.value = count
     })
+
+    // Listen for settings reload
+    EventsOn("reload_settings", async () => {
+      try {
+        const s = await GetSettings()
+        if (s && s.language) {
+          locale.value = s.language
+        }
+      } catch (e) {
+        console.error("Failed to reload settings", e)
+      }
+    })
   }
 })
 

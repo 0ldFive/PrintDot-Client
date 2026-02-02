@@ -8,8 +8,12 @@
     "username": "Username",
     "password": "Password",
     "save": "Save Settings",
+    "saving": "Saving...",
     "saved": "Saved! Restarting...",
-    "restart": "Restart Now"
+    "restart": "Restart Now",
+    "confirmRestart": "Restart Required",
+    "confirmRestartMessage": "Applying these settings requires a restart. Do you want to restart now?",
+    "cancel": "Cancel"
   },
   "main": {
     "title": "PrintDot Client",

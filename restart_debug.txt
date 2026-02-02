@@ -1,0 +1,9 @@
+2026-02-02T18:52:18+08:00: Restart called
+2026-02-02T18:52:18+08:00: Saving window state
+2026-02-02T18:52:18+08:00: Executable: D:\codes\print-dot-client\build\bin\print-dot-client-dev.exe
+2026-02-02T18:52:18+08:00: Current PID: 15684
+2026-02-02T18:52:18+08:00: Starting PowerShell command
+2026-02-02T18:52:18+08:00: Cleaning up
+2026-02-02T18:52:18+08:00: Cleanup done, quitting runtime
+2026-02-02T18:52:18+08:00: Runtime quit, quitting systray
+2026-02-02T18:52:18+08:00: Systray quit, exiting os

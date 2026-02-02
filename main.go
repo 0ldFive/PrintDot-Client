@@ -9,9 +9,9 @@ import (
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/menu"
-	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -42,6 +42,11 @@ func main() {
 			mode = "help"
 		case "settings":
 			mode = "settings"
+			if len(os.Args) > 2 {
+				if p, err := strconv.Atoi(os.Args[2]); err == nil {
+					logPort = p
+				}
+			}
 		}
 	}
 
@@ -60,39 +65,20 @@ func main() {
 	minHeight := 600
 	var onBeforeClose func(ctx context.Context) bool
 
-	appMenu := menu.NewMenu()
+	// Restore window state from settings if in main mode
+	if mode == "main" {
+		s := sm.Get()
+		if s.WindowWidth > 0 && s.WindowHeight > 0 {
+			width = s.WindowWidth
+			height = s.WindowHeight
+		}
+		// X and Y will be handled in OnStartup
+	}
+
+	var appMenu *menu.Menu
 
 	if mode == "main" {
-		// Main App Configuration
-		menuTitle := "Menu"
-		settingsTitle := "Settings"
-		logsTitle := "System Logs"
-		helpTitle := "Help"
-		quitTitle := "Quit"
-
-		if currentLang == "zh-CN" {
-			menuTitle = "菜单"
-			settingsTitle = "设置"
-			logsTitle = "系统日志"
-			helpTitle = "帮助"
-			quitTitle = "退出"
-		}
-
-		FileMenu := appMenu.AddSubmenu(menuTitle)
-		FileMenu.AddText(settingsTitle, keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
-			app.ShowSettings()
-		})
-		FileMenu.AddText(logsTitle, keys.CmdOrCtrl("l"), func(_ *menu.CallbackData) {
-			app.ShowLogs()
-		})
-		FileMenu.AddSeparator()
-		FileMenu.AddText(helpTitle, keys.CmdOrCtrl("h"), func(_ *menu.CallbackData) {
-			app.ShowHelp()
-		})
-		FileMenu.AddSeparator()
-		FileMenu.AddText(quitTitle, keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
-			app.Quit()
-		})
+		appMenu = app.CreateMenu(currentLang)
 
 		onBeforeClose = func(ctx context.Context) bool {
 			app.Cleanup()
@@ -168,9 +154,21 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
-		OnStartup:        app.startup,
-		OnBeforeClose:    onBeforeClose,
-		Menu:             appMenu,
+		OnStartup: func(ctx context.Context) {
+			app.startup(ctx)
+			// Restore position if valid
+			if mode == "main" {
+				s := sm.Get()
+				if s.WindowX != 0 || s.WindowY != 0 {
+					runtime.WindowSetPosition(ctx, s.WindowX, s.WindowY)
+				}
+				if s.Maximized {
+					runtime.WindowMaximise(ctx)
+				}
+			}
+		},
+		OnBeforeClose: onBeforeClose,
+		Menu:          appMenu,
 		Bind: []interface{}{
 			app,
 		},
@@ -178,6 +176,9 @@ func main() {
 			WebviewIsTransparent: false,
 			WindowIsTranslucent:  false,
 			BackdropType:         windows.Mica,
+		},
+		Mac: &mac.Options{
+			TitleBar: mac.TitleBarHiddenInset(),
 		},
 	}
 

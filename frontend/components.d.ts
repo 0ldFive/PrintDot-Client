@@ -19,6 +19,7 @@ declare module 'vue' {
     IMaterialSymbolsPrint: typeof import('~icons/material-symbols/print')['default']
     IMaterialSymbolsPrintConnect: typeof import('~icons/material-symbols/print-connect')['default']
     IMaterialSymbolsRefresh: typeof import('~icons/material-symbols/refresh')['default']
+    IMaterialSymbolsSaveOutline: typeof import('~icons/material-symbols/save-outline')['default']
     IMaterialSymbolsSettingsOutline: typeof import('~icons/material-symbols/settings-outline')['default']
     IMaterialSymbolsStop: typeof import('~icons/material-symbols/stop')['default']
     IMaterialSymbolsTerminal: typeof import('~icons/material-symbols/terminal')['default']

@@ -33,6 +33,10 @@ type Bridge struct {
 	countMu       sync.Mutex
 	onCountChange func(int) // Callback to update frontend
 	conns         map[*websocket.Conn]bool
+
+	// Restart callback
+	onRestart func()
+	onReload  func()
 }
 
 func NewBridge() *Bridge {
@@ -50,6 +54,14 @@ func (b *Bridge) SetLogger(logger func(string)) {
 
 func (b *Bridge) SetCountCallback(cb func(int)) {
 	b.onCountChange = cb
+}
+
+func (b *Bridge) SetRestartCallback(cb func()) {
+	b.onRestart = cb
+}
+
+func (b *Bridge) SetReloadCallback(cb func()) {
+	b.onReload = cb
 }
 
 func (b *Bridge) updateClientCount(delta int) {
@@ -190,7 +202,6 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	b.countMu.Lock()
 	b.conns[c] = true
 	b.countMu.Unlock()
-
 	b.updateClientCount(1)
 	defer func() {
 		b.countMu.Lock()
@@ -199,47 +210,33 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		b.updateClientCount(-1)
 	}()
 
-	b.Log(fmt.Sprintf("Client connected: %s", r.RemoteAddr))
-
-	// Send printer list immediately
-	printers, err := b.GetPrinters()
-	if err == nil {
-		msg := map[string]interface{}{
-			"type": "printer_list",
-			"data": printers,
-		}
-		if err := c.WriteJSON(msg); err != nil {
-			b.Log(fmt.Sprintf("Failed to send printer list: %v", err))
-		} else {
-			b.Log("Sent printer list to client")
-		}
-	} else {
-		b.Log(fmt.Sprintf("Failed to get printers: %v", err))
-	}
+	b.Log(fmt.Sprintf("Client connected from %s", c.RemoteAddr()))
 
 	for {
-		_, message, err := c.ReadMessage()
+		var req PrintRequest
+		err := c.ReadJSON(&req)
 		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				b.Log(fmt.Sprintf("Client disconnected: %v", err))
+			} else {
+				// Normal closure or other error
+			}
 			break
 		}
 
-		var req PrintRequest
-		if err := json.Unmarshal(message, &req); err != nil {
-			c.WriteJSON(Response{Status: "error", Message: "Invalid JSON"})
-			continue
-		}
+		// Handle print request
+		// b.Log(fmt.Sprintf("Received print job for %s: %s...", req.Printer, req.JobName))
 
-		// Defaults
-		if req.Copies < 1 {
+		// If copies > 1, loop and print
+		if req.Copies <= 0 {
 			req.Copies = 1
 		}
-
-		b.Log(fmt.Sprintf("Printing job '%s' to '%s' (Copies: %d)", req.JobName, req.Printer, req.Copies))
 
 		successCount := 0
 		var lastErr error
 
 		for i := 0; i < req.Copies; i++ {
+			// If interval is set, wait before next copy (but not before first)
 			if i > 0 && req.JobInterval > 0 {
 				time.Sleep(time.Duration(req.JobInterval) * time.Millisecond)
 			}
@@ -315,6 +312,8 @@ func (b *Bridge) StartLogServer() error {
 	mux.HandleFunc("/logs", b.handleLogs)
 	mux.HandleFunc("/api/logs", b.handleLogsJSON)
 	mux.HandleFunc("/api/logs/clear", b.handleClearLogs)
+	mux.HandleFunc("/api/restart", b.handleRestartRequest)
+	mux.HandleFunc("/api/reload", b.handleReloadRequest)
 
 	b.logServer = &http.Server{
 		Handler: mux,
@@ -429,4 +428,30 @@ func (b *Bridge) handleClearLogs(w http.ResponseWriter, r *http.Request) {
 	b.logsMu.Unlock()
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (b *Bridge) handleReloadRequest(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Reload initiated"))
+
+	// Trigger reload on main thread
+	if b.onReload != nil {
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			b.onReload()
+		}()
+	}
 }

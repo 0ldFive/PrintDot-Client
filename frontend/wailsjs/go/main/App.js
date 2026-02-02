@@ -6,6 +6,10 @@ export function Cleanup() {
   return window['go']['main']['App']['Cleanup']();
 }
 
+export function CreateMenu(arg1) {
+  return window['go']['main']['App']['CreateMenu'](arg1);
+}
+
 export function GetAppMode() {
   return window['go']['main']['App']['GetAppMode']();
 }
@@ -26,12 +30,12 @@ export function GetUsageGuide() {
   return window['go']['main']['App']['GetUsageGuide']();
 }
 
-export function Greet(arg1) {
-  return window['go']['main']['App']['Greet'](arg1);
-}
-
 export function Quit() {
   return window['go']['main']['App']['Quit']();
+}
+
+export function Reload() {
+  return window['go']['main']['App']['Reload']();
 }
 
 export function Restart() {
@@ -60,4 +64,8 @@ export function StartServer(arg1, arg2) {
 
 export function StopServer() {
   return window['go']['main']['App']['StopServer']();
+}
+
+export function UpdateUI(arg1) {
+  return window['go']['main']['App']['UpdateUI'](arg1);
 }

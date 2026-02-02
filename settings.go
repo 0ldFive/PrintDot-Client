@@ -14,6 +14,12 @@ type AppSettings struct {
 	RemoteServer   string `json:"remoteServer"`
 	RemoteUser     string `json:"remoteUser"`
 	RemotePassword string `json:"remotePassword"`
+	// Window State
+	WindowWidth  int  `json:"windowWidth"`
+	WindowHeight int  `json:"windowHeight"`
+	WindowX      int  `json:"windowX"`
+	WindowY      int  `json:"windowY"`
+	Maximized    bool `json:"maximized"`
 }
 
 type SettingsManager struct {
