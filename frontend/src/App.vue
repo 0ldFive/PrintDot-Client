@@ -24,12 +24,26 @@ const connectionUrl = computed(() => {
 
 const serverStatus = ref("Stopped")
 const printers = ref<string[]>([])
+const isLoadingPrinters = ref(false)
 
 const refreshPrinters = async () => {
+  if (isLoadingPrinters.value) return
+  isLoadingPrinters.value = true
+  printers.value = [] // Clear list immediately
+  
+  // Add a minimum delay to ensure animation is visible
+  const minDelay = new Promise(resolve => setTimeout(resolve, 800))
+  
   try {
-    printers.value = await GetPrinters()
+    const [fetchedPrinters] = await Promise.all([
+      GetPrinters(),
+      minDelay
+    ])
+    printers.value = fetchedPrinters
   } catch (e) {
     console.error(e)
+  } finally {
+    isLoadingPrinters.value = false
   }
 }
 
@@ -192,13 +206,20 @@ onUnmounted(() => {
                 <i-material-symbols-print class="text-gray-600" />
                 Available Printers
               </h2>
-              <button @click="refreshPrinters" class="text-xs bg-gray-100 hover:bg-gray-200 text-blue-600 px-3 py-1.5 border border-gray-200 transition-colors rounded-md flex items-center gap-1">
-                <i-material-symbols-refresh />
+              <button 
+                @click="refreshPrinters" 
+                class="text-xs bg-gray-100 hover:bg-gray-200 text-blue-600 px-3 py-1.5 border border-gray-200 transition-colors rounded-md flex items-center gap-1"
+                :disabled="isLoadingPrinters"
+              >
+                <i-material-symbols-refresh :class="{ 'animate-spin': isLoadingPrinters }" />
                 Refresh
               </button>
             </div>
             
-            <div v-if="printers.length === 0" class="text-gray-400 italic text-center py-6 bg-gray-50 border border-dashed border-gray-200">
+            <div v-if="isLoadingPrinters" class="text-gray-500 italic text-center py-6 bg-gray-50 border border-dashed border-gray-200 flex flex-col items-center gap-2">
+              <span>Loading...</span>
+            </div>
+            <div v-else-if="printers.length === 0" class="text-gray-400 italic text-center py-6 bg-gray-50 border border-dashed border-gray-200">
               No printers found.
             </div>
             <ul v-else class="grid grid-cols-1 gap-0 border border-gray-200 divide-y divide-gray-200">
