@@ -1,0 +1,13 @@
+{
+  "settings": {
+    "title": "设置",
+    "language": "语言",
+    "autoStart": "开机自启动",
+    "remotePrint": "远程打印服务器",
+    "serverAddress": "服务器地址",
+    "username": "用户名",
+    "password": "密码",
+    "save": "保存设置",
+    "saved": "设置已保存!"
+  }
+}

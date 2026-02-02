@@ -29,10 +29,19 @@ func main() {
 	mode := "main"
 	logPort := 0
 
-	if len(os.Args) > 2 && os.Args[1] == "logs" {
-		mode = "logs"
-		if p, err := strconv.Atoi(os.Args[2]); err == nil {
-			logPort = p
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "logs":
+			mode = "logs"
+			if len(os.Args) > 2 {
+				if p, err := strconv.Atoi(os.Args[2]); err == nil {
+					logPort = p
+				}
+			}
+		case "help":
+			mode = "help"
+		case "settings":
+			mode = "settings"
 		}
 	}
 
@@ -52,8 +61,15 @@ func main() {
 	if mode == "main" {
 		// Main App Configuration
 		FileMenu := appMenu.AddSubmenu("Menu")
+		FileMenu.AddText("Settings", keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
+			app.ShowSettings()
+		})
 		FileMenu.AddText("System Logs", keys.CmdOrCtrl("l"), func(_ *menu.CallbackData) {
 			app.ShowLogs()
+		})
+		FileMenu.AddSeparator()
+		FileMenu.AddText("Help", keys.CmdOrCtrl("h"), func(_ *menu.CallbackData) {
+			app.ShowHelp()
 		})
 		FileMenu.AddSeparator()
 		FileMenu.AddText("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
@@ -96,12 +112,24 @@ func main() {
 		}, func() {
 			// Cleanup if needed
 		})
-	} else {
+	} else if mode == "logs" {
 		// Logs Window Configuration
 		title = "System Logs"
 		width = 700
 		height = 500
 		// No special menu or close behavior for logs window (it just closes)
+	} else if mode == "help" {
+		title = "Help - Usage Guide"
+		width = 800
+		height = 600
+		minWidth = 600
+		minHeight = 400
+	} else if mode == "settings" {
+		title = "Settings"
+		width = 500
+		height = 600
+		minWidth = 400
+		minHeight = 500
 	}
 
 	// Create application with options
@@ -135,9 +163,23 @@ func main() {
 				runtime.WindowShow(app.ctx)
 			},
 		}
-	} else {
+	} else if mode == "logs" {
 		appOptions.SingleInstanceLock = &options.SingleInstanceLock{
 			UniqueId: "56006c0a-0498-4228-a320-c2409044a14e-logs",
+			OnSecondInstanceLaunch: func(secondInstanceData options.SecondInstanceData) {
+				runtime.WindowShow(app.ctx)
+			},
+		}
+	} else if mode == "help" {
+		appOptions.SingleInstanceLock = &options.SingleInstanceLock{
+			UniqueId: "56006c0a-0498-4228-a320-c2409044a14e-help",
+			OnSecondInstanceLaunch: func(secondInstanceData options.SecondInstanceData) {
+				runtime.WindowShow(app.ctx)
+			},
+		}
+	} else if mode == "settings" {
+		appOptions.SingleInstanceLock = &options.SingleInstanceLock{
+			UniqueId: "56006c0a-0498-4228-a320-c2409044a14e-settings",
 			OnSecondInstanceLaunch: func(secondInstanceData options.SecondInstanceData) {
 				runtime.WindowShow(app.ctx)
 			},

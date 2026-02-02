@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,22 +12,29 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+//go:embed docs/usage_guide.md
+var usageGuide string
+
 // App struct
 type App struct {
-	ctx     context.Context
-	bridge  *Bridge
-	AppMode string
-	LogPort int
-	logsCmd *exec.Cmd
-	logsMu  sync.Mutex
+	ctx         context.Context
+	bridge      *Bridge
+	settings    *SettingsManager
+	AppMode     string
+	LogPort     int
+	logsCmd     *exec.Cmd
+	logsMu      sync.Mutex
+	helpCmd     *exec.Cmd
+	settingsCmd *exec.Cmd
 }
 
 // NewApp creates a new App application struct
 func NewApp(mode string, logPort int) *App {
 	return &App{
-		bridge:  NewBridge(),
-		AppMode: mode,
-		LogPort: logPort,
+		bridge:   NewBridge(),
+		settings: NewSettingsManager(),
+		AppMode:  mode,
+		LogPort:  logPort,
 	}
 }
 
@@ -35,8 +43,8 @@ func NewApp(mode string, logPort int) *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	if a.AppMode == "logs" {
-		// In logs mode, we don't start the bridge or log server
+	if a.AppMode != "main" {
+		// In auxiliary modes (logs, help, settings), we don't start the bridge or log server
 		return
 	}
 
@@ -128,15 +136,73 @@ func (a *App) Cleanup() {
 	a.logsMu.Lock()
 	defer a.logsMu.Unlock()
 
-	// Kill logs window child process if running
+	// Kill child processes if running
 	if a.logsCmd != nil && a.logsCmd.Process != nil {
 		a.logsCmd.Process.Kill()
 		a.logsCmd = nil
+	}
+	if a.helpCmd != nil && a.helpCmd.Process != nil {
+		a.helpCmd.Process.Kill()
+		a.helpCmd = nil
+	}
+	if a.settingsCmd != nil && a.settingsCmd.Process != nil {
+		a.settingsCmd.Process.Kill()
+		a.settingsCmd = nil
 	}
 }
 
 func (a *App) GetAppMode() string {
 	return a.AppMode
+}
+
+func (a *App) GetUsageGuide() string {
+	return usageGuide
+}
+
+func (a *App) GetSettings() AppSettings {
+	return a.settings.Get()
+}
+
+func (a *App) SaveSettings(s AppSettings) error {
+	return a.settings.Save(s)
+}
+
+func (a *App) spawnWindow(mode string, cmdStore **exec.Cmd) {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+
+	if *cmdStore != nil {
+		// If already open, trigger single instance logic
+		exec.Command(exe, mode).Start()
+		return
+	}
+
+	cmd := exec.Command(exe, mode)
+	if err := cmd.Start(); err != nil {
+		a.bridge.Log(fmt.Sprintf("Failed to spawn %s window: %v", mode, err))
+	} else {
+		*cmdStore = cmd
+		go func() {
+			cmd.Wait()
+			a.logsMu.Lock()
+			*cmdStore = nil
+			a.logsMu.Unlock()
+		}()
+	}
+}
+
+func (a *App) ShowHelp() {
+	a.logsMu.Lock()
+	defer a.logsMu.Unlock()
+	a.spawnWindow("help", &a.helpCmd)
+}
+
+func (a *App) ShowSettings() {
+	a.logsMu.Lock()
+	defer a.logsMu.Unlock()
+	a.spawnWindow("settings", &a.settingsCmd)
 }
 
 func (a *App) GetLogPort() int {

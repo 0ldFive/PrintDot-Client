@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    Help: typeof import('./src/components/Help.vue')['default']
     IMaterialSymbolsDeleteOutline: typeof import('~icons/material-symbols/delete-outline')['default']
     IMaterialSymbolsDevices: typeof import('~icons/material-symbols/devices')['default']
     IMaterialSymbolsDns: typeof import('~icons/material-symbols/dns')['default']
@@ -18,7 +19,9 @@ declare module 'vue' {
     IMaterialSymbolsPrint: typeof import('~icons/material-symbols/print')['default']
     IMaterialSymbolsPrintConnect: typeof import('~icons/material-symbols/print-connect')['default']
     IMaterialSymbolsRefresh: typeof import('~icons/material-symbols/refresh')['default']
+    IMaterialSymbolsSettingsOutline: typeof import('~icons/material-symbols/settings-outline')['default']
     IMaterialSymbolsStop: typeof import('~icons/material-symbols/stop')['default']
     IMaterialSymbolsTerminal: typeof import('~icons/material-symbols/terminal')['default']
+    Settings: typeof import('./src/components/Settings.vue')['default']
   }
 }

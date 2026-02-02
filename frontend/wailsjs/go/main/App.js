@@ -18,6 +18,14 @@ export function GetPrinters() {
   return window['go']['main']['App']['GetPrinters']();
 }
 
+export function GetSettings() {
+  return window['go']['main']['App']['GetSettings']();
+}
+
+export function GetUsageGuide() {
+  return window['go']['main']['App']['GetUsageGuide']();
+}
+
 export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
@@ -26,8 +34,20 @@ export function Quit() {
   return window['go']['main']['App']['Quit']();
 }
 
+export function SaveSettings(arg1) {
+  return window['go']['main']['App']['SaveSettings'](arg1);
+}
+
+export function ShowHelp() {
+  return window['go']['main']['App']['ShowHelp']();
+}
+
 export function ShowLogs() {
   return window['go']['main']['App']['ShowLogs']();
+}
+
+export function ShowSettings() {
+  return window['go']['main']['App']['ShowSettings']();
 }
 
 export function StartServer(arg1, arg2) {

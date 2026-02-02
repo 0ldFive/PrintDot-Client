@@ -1,8 +1,12 @@
 <script lang="ts" setup>
 import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
-import { GetPrinters, StartServer, StopServer, GetAppMode, GetLogPort } from '../wailsjs/go/main/App'
+import { GetPrinters, StartServer, StopServer, GetAppMode, GetLogPort, GetSettings } from '../wailsjs/go/main/App'
 import { EventsOn } from '../wailsjs/runtime/runtime'
+import Help from './components/Help.vue'
+import Settings from './components/Settings.vue'
+import { useI18n } from 'vue-i18n'
 
+const { locale } = useI18n()
 const appMode = ref("main")
 const logPort = ref(0)
 const logs = ref<string[]>([])
@@ -89,11 +93,21 @@ const clearAllLogs = async () => {
 onMounted(async () => {
   appMode.value = await GetAppMode()
 
+  // Load settings for language
+  try {
+    const s = await GetSettings()
+    if (s && s.language) {
+      locale.value = s.language
+    }
+  } catch (e) {
+    console.error("Failed to load settings", e)
+  }
+
   if (appMode.value === "logs") {
     logPort.value = await GetLogPort()
     fetchLogs()
     logPollInterval = setInterval(fetchLogs, 1000)
-  } else {
+  } else if (appMode.value === "main") {
     // Main mode
     await refreshPrinters()
     await toggleServer()
@@ -111,7 +125,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-screen w-screen overflow-hidden bg-white text-gray-900 font-sans text-left flex flex-col relative">
+  <Help v-if="appMode === 'help'" />
+  <Settings v-else-if="appMode === 'settings'" />
+  
+  <div v-else class="h-screen w-screen overflow-hidden bg-white text-gray-900 font-sans text-left flex flex-col relative">
     
     <!-- Content Area -->
     <div class="flex-1 overflow-hidden relative">

@@ -1,0 +1,13 @@
+{
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "autoStart": "Start on Boot",
+    "remotePrint": "Remote Print Server",
+    "serverAddress": "Server Address",
+    "username": "Username",
+    "password": "Password",
+    "save": "Save Settings",
+    "saved": "Settings Saved!"
+  }
+}
