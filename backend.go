@@ -119,10 +119,14 @@ var upgrader = websocket.Upgrader{
 }
 
 type PrintRequest struct {
-	Printer string `json:"printer"`
-	Content string `json:"content"` // Raw string or base64? Let's assume string for now
-	Key     string `json:"key"`
-	JobName string `json:"jobName"`
+	Printer     string `json:"printer"`
+	Content     string `json:"content"` // Raw string or base64? Let's assume string for now
+	Key         string `json:"key"`
+	JobName     string `json:"jobName"`
+	Copies      int    `json:"copies"`      // Number of copies
+	Orientation string `json:"orientation"` // "portrait" or "landscape" (requires driver support/GDI)
+	DPI         int    `json:"dpi"`         // Print DPI (requires driver support/GDI)
+	JobInterval int    `json:"jobInterval"` // Delay between copies in ms (for "interleaved" manual handling)
 }
 
 type Response struct {
@@ -182,14 +186,46 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		b.Log(fmt.Sprintf("Printing job '%s' to '%s'", req.JobName, req.Printer))
-		err = b.printRaw(req.Printer, req.JobName, []byte(req.Content))
-		if err != nil {
-			b.Log(fmt.Sprintf("Print error: %v", err))
-			c.WriteJSON(Response{Status: "error", Message: err.Error()})
-		} else {
+		// Defaults
+		if req.Copies < 1 {
+			req.Copies = 1
+		}
+
+		b.Log(fmt.Sprintf("Printing job '%s' to '%s' (Copies: %d)", req.JobName, req.Printer, req.Copies))
+
+		successCount := 0
+		var lastErr error
+
+		for i := 0; i < req.Copies; i++ {
+			if i > 0 && req.JobInterval > 0 {
+				time.Sleep(time.Duration(req.JobInterval) * time.Millisecond)
+			}
+
+			// Note: Orientation and DPI are currently ignored for RAW printing as they usually
+			// need to be embedded in the RAW commands (ZPL/EPL) or require GDI printing.
+			// We expose them in the struct for future GDI implementation or driver manipulation.
+			if req.Orientation != "" || req.DPI > 0 {
+				// b.Log("Warning: Orientation/DPI settings are ignored in RAW mode. Please set them in your printer commands.")
+			}
+
+			err = b.printRaw(req.Printer, req.JobName, []byte(req.Content))
+			if err != nil {
+				lastErr = err
+				b.Log(fmt.Sprintf("Print error (copy %d): %v", i+1, err))
+				// Continue trying other copies? Or stop? Let's stop on error to avoid waste.
+				break
+			} else {
+				successCount++
+			}
+		}
+
+		if successCount == req.Copies {
 			b.Log("Print success")
 			c.WriteJSON(Response{Status: "success", Message: "Printed successfully"})
+		} else {
+			msg := fmt.Sprintf("Printed %d/%d copies. Error: %v", successCount, req.Copies, lastErr)
+			b.Log(msg)
+			c.WriteJSON(Response{Status: "error", Message: msg})
 		}
 	}
 }

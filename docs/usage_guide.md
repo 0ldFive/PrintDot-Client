@@ -8,7 +8,9 @@
 - 自动获取操作系统已安装的打印机列表。
 - 启动 WebSocket 服务监听打印请求（默认端口 1122）。
 - 支持自定义服务端口和安全密钥（Secret Key）。
+- 支持高级打印参数：打印份数、份数间隔、打印方向、DPI 等。
 - 提供可视化的管理界面，实时查看日志和打印机状态。
+- **独立日志窗口**：支持在浏览器中查看实时系统日志。
 
 ---
 
@@ -26,13 +28,14 @@ wails dev
 ### 2.2 界面配置
 启动后，界面提供以下配置项：
 - **Port**: WebSocket 服务监听端口（默认 `1122`）。
-- **Secret Key**: 安全密钥（可选）。如果设置了密钥，客户端在发送打印请求时必须携带正确的密钥，否则将被拒绝。
+- **Secret Key**: 安全密钥（可选）。如果设置了密钥，客户端在连接或发送请求时必须通过鉴权。
 - **Start/Stop Server**: 点击按钮即可启动或停止 WebSocket 服务。
-- **Connection URL**: 服务启动后，界面会显示完整的连接地址（如 `ws://localhost:1122/ws`）。
+- **Connection URL**: 服务启动后，界面会显示完整的连接地址（如 `ws://localhost:1122/ws?key=...`）。
 
 **操作说明**:
 - **后台运行**: 点击窗口关闭按钮不会退出程序，而是最小化到任务栏。
 - **退出程序**: 若需完全退出，请使用菜单栏的 `File` -> `Quit` 或使用快捷键 `Ctrl+Q`。
+- **查看日志**: 使用菜单栏 `File` -> `System Logs` (Ctrl+L) 可打开独立的浏览器窗口查看实时日志。
 
 ---
 
@@ -41,32 +44,51 @@ wails dev
 ### 3.1 连接信息
 - **协议**: WebSocket (`ws://`)
 - **地址**: `ws://localhost:<PORT>/ws`
-- **默认地址**: `ws://localhost:1122/ws`
+- **鉴权**: 
+  - 如果设置了 `Secret Key`，建议在连接 URL 中携带：`ws://localhost:1122/ws?key=YOUR_PASSWORD`
+  - 如果连接时未携带 key，也可以在发送的消息体中包含 `key` 字段（但不推荐，连接可能被拒绝）。
 
-### 3.2 通信协议
-所有数据交互均使用 JSON 格式。
+### 3.2 消息类型
 
-### 3.3 发送打印任务 (Client -> Server)
+#### 3.2.1 连接成功响应 (Server -> Client)
+连接建立后，服务端会立即发送当前的打印机列表：
+```json
+{
+  "type": "printer_list",
+  "data": ["Microsoft Print to PDF", "ZDesigner GK888t", ...]
+}
+```
+
+#### 3.2.2 发送打印任务 (Client -> Server)
 客户端发送的 JSON 数据包结构如下：
 
 ```json
 {
-  "printer": "Microsoft Print to PDF",  // [必填] 目标打印机名称 (需与系统名称完全一致)
-  "content": "^XA^FO50,50^ADN,36,20^FDHello World^FS^XZ", // [必填] 打印内容 (ZPL, ESC/P 指令或纯文本)
-  "jobName": "My Print Job 001",        // [选填] 任务名称，显示在系统打印队列中
-  "key": "123456"                       // [选填] 如果服务端设置了密钥，此处必须匹配
+  "printer": "Microsoft Print to PDF",  // [必填] 目标打印机名称
+  "content": "^XA^FO50,50^FDHello^FS^XZ", // [必填] 打印内容 (ZPL/EPL/Raw)
+  "jobName": "My Print Job 001",        // [选填] 任务名称
+  "key": "123456",                      // [选填] 鉴权密钥 (若连接时已验证可省略)
+  "copies": 2,                          // [选填] 打印份数，默认 1
+  "jobInterval": 1000,                  // [选填] 份数间延迟(毫秒)，用于手动隔张打印
+  "orientation": "landscape",           // [选填] 打印方向 (portrait/landscape) *
+  "dpi": 203                            // [选填] 打印精度 *
 }
 ```
 
+> **注意 (\*)**: `orientation` 和 `dpi` 参数仅在驱动程序支持或特定模式下生效。对于 **RAW (指令)** 打印模式（如 ZPL/EPL），建议直接在 `content` 指令中设置方向和浓度，因为 RAW 模式通常会绕过 Windows 驱动的这些设置。
+
 | 字段 | 类型 | 说明 |
 | :--- | :--- | :--- |
-| `printer` | String | 目标打印机名称。可以通过界面查看可用打印机列表。 |
-| `content` | String | 原始打印数据。通常是打印机指令集（如 ZPL, TSPL, ESC/POS）或纯文本。 |
-| `jobName` | String | 打印任务名称，默认为 "Raw Print Job"。 |
-| `key` | String | 鉴权密钥。如果服务端未设置密钥，此字段可忽略。 |
+| `printer` | String | 目标打印机名称。 |
+| `content` | String | 原始打印数据 (ZPL, TSPL, ESC/POS 等)。 |
+| `jobName` | String | 打印任务名称。 |
+| `copies` | Integer | **打印份数**。服务端会循环发送指定次数的任务。 |
+| `jobInterval` | Integer | **隔张间隔 (ms)**。每份打印之间的等待时间，可用于防止缓冲区溢出或手动撕纸间隔。 |
+| `orientation`| String | `portrait` (纵向) 或 `landscape` (横向)。(RAW模式建议使用指令控制) |
+| `dpi` | Integer | 目标打印 DPI。(RAW模式建议使用指令控制) |
 
-### 3.4 服务端响应 (Server -> Client)
-服务端会返回操作结果：
+#### 3.2.3 服务端响应 (Server -> Client)
+服务端会返回每次打印的结果：
 
 **成功响应:**
 ```json
@@ -80,7 +102,7 @@ wails dev
 ```json
 {
   "status": "error",
-  "message": "Invalid Key" // 或其他错误信息，如 "Printer not found"
+  "message": "Printer not found"
 }
 ```
 
@@ -88,39 +110,27 @@ wails dev
 
 ## 4. 调用示例 (JavaScript)
 
-以下是一个在浏览器端调用打印服务的简单示例：
-
 ```javascript
-const socket = new WebSocket('ws://localhost:1122/ws');
+const socket = new WebSocket('ws://localhost:1122/ws?key=123456');
 
 socket.onopen = () => {
-    console.log('已连接到打印服务');
-
-    const printJob = {
-        printer: "ZDesigner GK888t",
-        content: "Hello World", // 实际场景请替换为具体的打印机指令
-        jobName: "Test Job",
-        key: "" 
-    };
-
-    socket.send(JSON.stringify(printJob));
+    console.log('已连接');
 };
 
 socket.onmessage = (event) => {
-    const response = JSON.parse(event.data);
-    if (response.status === 'success') {
-        console.log('打印成功');
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'printer_list') {
+        console.log('可用打印机:', msg.data);
+        
+        // 发送打印任务
+        socket.send(JSON.stringify({
+            printer: msg.data[0],
+            content: "RAW DATA HERE...",
+            copies: 2,           // 打印 2 份
+            jobInterval: 500     // 间隔 0.5 秒
+        }));
     } else {
-        console.error('打印失败:', response.message);
+        console.log('收到回复:', msg);
     }
 };
-
-socket.onerror = (error) => {
-    console.error('连接错误:', error);
-};
 ```
-
-## 5. 注意事项
-1. **打印机名称**: 必须与操作系统中显示的名称完全一致（区分大小写）。
-2. **驱动程序**: 确保操作系统已安装正确的打印机驱动。
-3. **防火墙**: 如果需要跨局域网访问（非 localhost），请确保防火墙允许该端口（如 1122）的入站连接，并在启动时监听 `0.0.0.0` 而非仅 `localhost`（目前版本默认监听所有网卡）。
