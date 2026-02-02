@@ -58,7 +58,11 @@ func main() {
 	currentLang := sm.Get().Language
 
 	// Configure based on mode
-	title := "print-dot-client"
+	title := "PrintDot Client"
+	if currentLang == "zh-CN" {
+		title = "PrintDot 客户端"
+	}
+
 	width := 380
 	height := 660
 	minWidth := 380
@@ -116,17 +120,26 @@ func main() {
 	} else if mode == "logs" {
 		// Logs Window Configuration
 		title = "System Logs"
+		if currentLang == "zh-CN" {
+			title = "系统日志"
+		}
 		width = 700
 		height = 500
 		// No special menu or close behavior for logs window (it just closes)
 	} else if mode == "help" {
 		title = "Help - Usage Guide"
+		if currentLang == "zh-CN" {
+			title = "帮助 - 使用指南"
+		}
 		width = 800
 		height = 600
 		minWidth = 600
 		minHeight = 400
 	} else if mode == "settings" {
 		title = "Settings"
+		if currentLang == "zh-CN" {
+			title = "设置"
+		}
 	}
 
 	// Create application with options
