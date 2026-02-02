@@ -14,10 +14,15 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"github.com/getlantern/systray"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+//go:embed build/appicon.png
+var icon []byte
 
 func main() {
 	// Check command line args
@@ -62,9 +67,41 @@ func main() {
 			if isQuitting {
 				return false
 			}
-			runtime.WindowMinimise(ctx)
+			runtime.WindowHide(ctx)
 			return true
 		}
+
+		// Start system tray
+		go systray.Run(func() {
+			systray.SetIcon(icon)
+			systray.SetTitle("Print Bridge")
+			systray.SetTooltip("Print Bridge Client")
+
+			mShow := systray.AddMenuItem("Show Main Window", "Show the application window")
+			mQuit := systray.AddMenuItem("Quit", "Quit the application")
+
+			go func() {
+				for {
+					select {
+					case <-mShow.ClickedCh:
+						if app.ctx != nil {
+							runtime.WindowShow(app.ctx)
+							// runtime.WindowSetFocus(app.ctx) // Not available in all versions
+						}
+					case <-mQuit.ClickedCh:
+						isQuitting = true
+						if app.ctx != nil {
+							runtime.Quit(app.ctx)
+						} else {
+							systray.Quit()
+							os.Exit(0)
+						}
+					}
+				}
+			}()
+		}, func() {
+			// Cleanup if needed
+		})
 	} else {
 		// Logs Window Configuration
 		title = "System Logs"
@@ -96,6 +133,10 @@ func main() {
 			BackdropType:         windows.Mica,
 		},
 	})
+
+	if mode == "main" {
+		systray.Quit()
+	}
 
 	if err != nil {
 		println("Error:", err.Error())
