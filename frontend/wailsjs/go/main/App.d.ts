@@ -18,6 +18,8 @@ export function Greet(arg1:string):Promise<string>;
 
 export function Quit():Promise<void>;
 
+export function Restart():Promise<void>;
+
 export function SaveSettings(arg1:main.AppSettings):Promise<void>;
 
 export function ShowHelp():Promise<void>;

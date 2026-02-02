@@ -8,6 +8,7 @@
     "username": "Username",
     "password": "Password",
     "save": "Save Settings",
-    "saved": "Settings Saved!"
+    "saved": "Saved! Restarting...",
+    "restart": "Restart Now"
   }
 }

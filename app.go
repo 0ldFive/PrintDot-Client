@@ -86,6 +86,20 @@ func (a *App) StopServer() error {
 	return a.bridge.StopServer()
 }
 
+func (a *App) Restart() {
+	a.Cleanup()
+
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+
+	cmd := exec.Command(exe)
+	cmd.Start()
+
+	runtime.Quit(a.ctx)
+}
+
 func (a *App) Quit() {
 	runtime.Quit(a.ctx)
 }

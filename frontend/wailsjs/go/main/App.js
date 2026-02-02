@@ -34,6 +34,10 @@ export function Quit() {
   return window['go']['main']['App']['Quit']();
 }
 
+export function Restart() {
+  return window['go']['main']['App']['Restart']();
+}
+
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
 }

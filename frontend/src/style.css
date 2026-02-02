@@ -3,7 +3,7 @@
 
 html {
     background-color: white;
-    text-align: center;
+    /* text-align: center; Removed to fix left alignment issues */
     color: #1a202c;
     overflow: hidden; /* Prevent window scrollbar */
 }
@@ -38,5 +38,5 @@ html, body, #app {
 
 #app {
     height: 100vh;
-    text-align: center;
+    /* text-align: center; Removed to fix left alignment issues */
 }

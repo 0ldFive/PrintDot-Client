@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { GetSettings, SaveSettings } from '../../wailsjs/go/main/App'
+import { GetSettings, SaveSettings, Restart } from '../../wailsjs/go/main/App'
 
 const { t, locale } = useI18n()
 
@@ -27,14 +27,17 @@ onMounted(async () => {
 
 const save = async () => {
   try {
-    // Update locale immediately
-    locale.value = settings.value.language
-    
+    // Save settings first
     await SaveSettings(settings.value)
+    
+    // Show restart message
     saveStatus.value = t('settings.saved')
-    setTimeout(() => {
-      saveStatus.value = ''
-    }, 2000)
+    
+    // Wait briefly and restart
+    setTimeout(async () => {
+      await Restart()
+    }, 1500)
+    
   } catch (e) {
     console.error(e)
     saveStatus.value = 'Error saving settings'
