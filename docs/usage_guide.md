@@ -1,4 +1,4 @@
-# Print Bridge 使用指南与规范
+# PrintDot Client 使用指南与规范
 
 ## 1. 项目简介
 

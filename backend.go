@@ -314,6 +314,7 @@ func (b *Bridge) StartLogServer() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/logs", b.handleLogs)
 	mux.HandleFunc("/api/logs", b.handleLogsJSON)
+	mux.HandleFunc("/api/logs/clear", b.handleClearLogs)
 
 	b.logServer = &http.Server{
 		Handler: mux,
@@ -354,7 +355,7 @@ func (b *Bridge) handleLogs(w http.ResponseWriter, r *http.Request) {
 	html := `<!DOCTYPE html>
 <html>
 <head>
-	<title>System Logs - Print Bridge</title>
+	<title>System Logs - PrintDot Client</title>
 	<meta http-equiv="refresh" content="2">
 	<style>
 		body { 
@@ -407,4 +408,25 @@ func (b *Bridge) handleLogsJSON(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*") // Allow child process to fetch
 	json.NewEncoder(w).Encode(currentLogs)
+}
+
+func (b *Bridge) handleClearLogs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	b.logsMu.Lock()
+	b.logs = []string{}
+	b.logsMu.Unlock()
+
+	w.WriteHeader(http.StatusOK)
 }

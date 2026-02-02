@@ -77,6 +77,15 @@ const fetchLogs = async () => {
   }
 }
 
+const clearAllLogs = async () => {
+  logs.value = []
+  try {
+    await fetch(`http://localhost:${logPort.value}/api/logs/clear`, { method: 'POST' })
+  } catch (e) {
+    console.error("Failed to clear logs", e)
+  }
+}
+
 onMounted(async () => {
   appMode.value = await GetAppMode()
 
@@ -117,9 +126,9 @@ onUnmounted(() => {
             </h1>
             <p class="text-xs text-gray-500">Live system events</p>
           </div>
-          <button @click="logs = []" class="text-xs text-red-600 hover:bg-red-50 px-3 py-1.5 border border-red-200 rounded-md transition-colors flex items-center gap-1">
+          <button @click="clearAllLogs" class="text-xs text-red-600 hover:bg-red-50 px-3 py-1.5 border border-red-200 rounded-md transition-colors flex items-center gap-1">
             <i-material-symbols-delete-outline />
-            Clear Local View
+            Clear All
           </button>
         </header>
         <div class="flex-1 bg-gray-900 text-gray-300 p-4 font-mono text-xs overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">

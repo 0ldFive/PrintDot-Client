@@ -68,7 +68,7 @@ func main() {
 		// Start system tray
 		go systray.Run(func() {
 			systray.SetIcon(icon)
-			systray.SetTitle("Print Bridge")
+			systray.SetTitle("PrintDot Client")
 			systray.SetTooltip("PrintDot Client")
 
 			mShow := systray.AddMenuItem("Show Main Window", "Show the application window")
