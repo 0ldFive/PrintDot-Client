@@ -53,7 +53,7 @@ func main() {
 
 	if mode == "main" {
 		// Main App Configuration
-		FileMenu := appMenu.AddSubmenu("File")
+		FileMenu := appMenu.AddSubmenu("Menu")
 		FileMenu.AddText("System Logs", keys.CmdOrCtrl("l"), func(_ *menu.CallbackData) {
 			app.ShowLogs()
 		})
