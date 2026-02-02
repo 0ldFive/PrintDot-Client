@@ -25,6 +25,10 @@ func main() {
 	// Create application menu
 	appMenu := menu.NewMenu()
 	FileMenu := appMenu.AddSubmenu("File")
+	FileMenu.AddText("System Logs", keys.CmdOrCtrl("l"), func(_ *menu.CallbackData) {
+		app.ShowLogs()
+	})
+	FileMenu.AddSeparator()
 	FileMenu.AddText("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
 		isQuitting = true
 		app.Quit()
@@ -32,9 +36,10 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  "print-dot-client",
-		Width:  600,
-		Height: 500,
+		Title:    "print-dot-client",
+		Width:    600,
+		Height:   500,
+		MinWidth: 380,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

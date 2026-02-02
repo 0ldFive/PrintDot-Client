@@ -14,6 +14,10 @@ export function Quit() {
   return window['go']['main']['App']['Quit']();
 }
 
+export function ShowLogs() {
+  return window['go']['main']['App']['ShowLogs']();
+}
+
 export function StartServer(arg1, arg2) {
   return window['go']['main']['App']['StartServer'](arg1, arg2);
 }

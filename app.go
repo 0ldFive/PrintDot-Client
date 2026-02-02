@@ -30,6 +30,7 @@ func (a *App) startup(ctx context.Context) {
 		fmt.Println(msg)
 	})
 
+	a.bridge.StartLogServer()
 	a.bridge.Log("Application started")
 }
 
@@ -52,4 +53,13 @@ func (a *App) StopServer() error {
 
 func (a *App) Quit() {
 	runtime.Quit(a.ctx)
+}
+
+func (a *App) ShowLogs() {
+	if a.bridge.logPort > 0 {
+		url := fmt.Sprintf("http://localhost:%d/logs", a.bridge.logPort)
+		runtime.BrowserOpenURL(a.ctx, url)
+	} else {
+		a.bridge.Log("Log server not running")
+	}
 }

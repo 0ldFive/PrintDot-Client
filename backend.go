@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/alexbrainman/printer"
 	"github.com/gorilla/websocket"
@@ -18,12 +21,19 @@ type Bridge struct {
 	key    string
 	mu     sync.Mutex
 	log    func(string) // Callback to log to frontend
+
+	// Log related
+	logs      []string
+	logsMu    sync.Mutex
+	logServer *http.Server
+	logPort   int
 }
 
 func NewBridge() *Bridge {
 	return &Bridge{
 		port: "1122",
 		key:  "",
+		logs: make([]string, 0),
 	}
 }
 
@@ -32,6 +42,16 @@ func (b *Bridge) SetLogger(logger func(string)) {
 }
 
 func (b *Bridge) Log(msg string) {
+	// Store in memory
+	b.logsMu.Lock()
+	timestamp := time.Now().Format("15:04:05")
+	entry := fmt.Sprintf("[%s] %s", timestamp, msg)
+	b.logs = append(b.logs, entry)
+	if len(b.logs) > 200 {
+		b.logs = b.logs[1:]
+	}
+	b.logsMu.Unlock()
+
 	if b.log != nil {
 		b.log(msg)
 	} else {
@@ -178,4 +198,85 @@ func (b *Bridge) printRaw(printerName string, jobName string, data []byte) error
 	}
 
 	return nil
+}
+
+func (b *Bridge) StartLogServer() error {
+	listener, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		return err
+	}
+	b.logPort = listener.Addr().(*net.TCPAddr).Port
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/logs", b.handleLogs)
+
+	b.logServer = &http.Server{
+		Handler: mux,
+	}
+
+	go func() {
+		if err := b.logServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+			log.Printf("Log server error: %v", err)
+		}
+	}()
+
+	return nil
+}
+
+func (b *Bridge) handleLogs(w http.ResponseWriter, r *http.Request) {
+	b.logsMu.Lock()
+	// Copy logs to avoid holding lock during template execution
+	currentLogs := make([]string, len(b.logs))
+	copy(currentLogs, b.logs)
+	b.logsMu.Unlock()
+
+	// Reverse logs for display (newest top)
+	for i, j := 0, len(currentLogs)-1; i < j; i, j = i+1, j-1 {
+		currentLogs[i], currentLogs[j] = currentLogs[j], currentLogs[i]
+	}
+
+	html := `<!DOCTYPE html>
+<html>
+<head>
+	<title>System Logs - Print Bridge</title>
+	<meta http-equiv="refresh" content="2">
+	<style>
+		body { 
+			font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+			background: #ffffff; 
+			color: #333; 
+			padding: 20px; 
+			margin: 0;
+		}
+		h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; color: #444; }
+		.log-entry { 
+			border-bottom: 1px solid #f0f0f0; 
+			padding: 8px 0; 
+			font-family: Consolas, 'Courier New', monospace;
+			font-size: 13px;
+		}
+		.log-entry:hover { background-color: #f9f9f9; }
+		.empty { color: #999; font-style: italic; padding: 20px 0; }
+		.status { font-size: 12px; color: #888; margin-top: 5px; }
+	</style>
+</head>
+<body>
+	<h2>System Logs</h2>
+	<div class="status">Auto-refreshing every 2 seconds</div>
+	<div id="logs">
+		{{range .}}
+		<div class="log-entry">{{.}}</div>
+		{{else}}
+		<div class="empty">No logs available.</div>
+		{{end}}
+	</div>
+</body>
+</html>`
+
+	t, err := template.New("logs").Parse(html)
+	if err != nil {
+		http.Error(w, "Template error", http.StatusInternalServerError)
+		return
+	}
+	t.Execute(w, currentLogs)
 }
