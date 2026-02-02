@@ -117,6 +117,7 @@ onMounted(async () => {
       clientCount.value = count
     })
 
+
     // Listen for settings reload
     EventsOn("reload_settings", async () => {
       try {

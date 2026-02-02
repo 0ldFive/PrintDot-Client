@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/gen2brain/beeep"
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -55,6 +56,28 @@ func (a *App) startup(ctx context.Context) {
 	// Bind reload callback
 	a.bridge.SetReloadCallback(func() {
 		a.Reload()
+	})
+
+	// Bind client connect
+	a.bridge.SetClientConnectCallback(func(clientInfo string) {
+		runtime.EventsEmit(ctx, "client_connected", clientInfo)
+
+		// System Notification
+		lang := a.settings.Get().Language
+		title := "PrintDot Client"
+		msg := fmt.Sprintf("Client connected: %s", clientInfo)
+		if lang == "zh-CN" {
+			title = "PrintDot 打印服务"
+			msg = fmt.Sprintf("客户端已连接: %s", clientInfo)
+		}
+
+		// Use beeep
+		go func() {
+			err := beeep.Notify(title, msg, "")
+			if err != nil {
+				fmt.Printf("Failed to send notification: %v\n", err)
+			}
+		}()
 	})
 
 	if a.AppMode == "main" {

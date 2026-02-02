@@ -29,7 +29,8 @@
     "availablePrinters": "Available Printers",
     "refresh": "Refresh",
     "loading": "Loading...",
-    "noPrinters": "No printers found."
+    "noPrinters": "No printers found.",
+    "clientConnected": "Client Connected"
   },
   "logs": {
     "title": "System Logs",

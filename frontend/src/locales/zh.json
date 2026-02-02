@@ -29,7 +29,8 @@
     "availablePrinters": "可用打印机",
     "refresh": "刷新",
     "loading": "加载中...",
-    "noPrinters": "未找到打印机"
+    "noPrinters": "未找到打印机",
+    "clientConnected": "客户端已连接"
   },
   "logs": {
     "title": "系统日志",

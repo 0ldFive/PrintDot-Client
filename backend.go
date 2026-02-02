@@ -35,8 +35,9 @@ type Bridge struct {
 	conns         map[*websocket.Conn]bool
 
 	// Restart callback
-	onRestart func()
-	onReload  func()
+	onRestart       func()
+	onReload        func()
+	onClientConnect func(string)
 }
 
 func NewBridge() *Bridge {
@@ -62,6 +63,10 @@ func (b *Bridge) SetRestartCallback(cb func()) {
 
 func (b *Bridge) SetReloadCallback(cb func()) {
 	b.onReload = cb
+}
+
+func (b *Bridge) SetClientConnectCallback(cb func(string)) {
+	b.onClientConnect = cb
 }
 
 func (b *Bridge) updateClientCount(delta int) {
@@ -211,6 +216,10 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	b.Log(fmt.Sprintf("Client connected from %s", c.RemoteAddr()))
+
+	if b.onClientConnect != nil {
+		b.onClientConnect(c.RemoteAddr().String())
+	}
 
 	for {
 		var req PrintRequest
