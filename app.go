@@ -247,20 +247,26 @@ func (a *App) CreateMenu(lang string) *menu.Menu {
 		quitTitle = "退出"
 	}
 
-	FileMenu := appMenu.AddSubmenu(menuTitle)
-	FileMenu.AddText(settingsTitle, keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
-		a.ShowSettings()
-	})
-	FileMenu.AddText(logsTitle, keys.CmdOrCtrl("l"), func(_ *menu.CallbackData) {
+	// Menu (菜单)
+	MenuMenu := appMenu.AddSubmenu(menuTitle)
+	MenuMenu.AddText(logsTitle, keys.CmdOrCtrl("l"), func(_ *menu.CallbackData) {
 		a.ShowLogs()
 	})
-	FileMenu.AddSeparator()
-	FileMenu.AddText(helpTitle, keys.CmdOrCtrl("h"), func(_ *menu.CallbackData) {
+	MenuMenu.AddSeparator()
+	MenuMenu.AddText(quitTitle, keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
+		a.Quit()
+	})
+
+	// Help (帮助)
+	HelpMenu := appMenu.AddSubmenu(helpTitle)
+	HelpMenu.AddText(helpTitle, keys.CmdOrCtrl("h"), func(_ *menu.CallbackData) {
 		a.ShowHelp()
 	})
-	FileMenu.AddSeparator()
-	FileMenu.AddText(quitTitle, keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
-		a.Quit()
+
+	// Settings (设置)
+	SettingsMenu := appMenu.AddSubmenu(settingsTitle)
+	SettingsMenu.AddText(settingsTitle, keys.CmdOrCtrl(","), func(_ *menu.CallbackData) {
+		a.ShowSettings()
 	})
 
 	return appMenu
