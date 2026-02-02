@@ -105,7 +105,7 @@ func main() {
 	}
 
 	// Create application with options
-	err := wails.Run(&options.App{
+	appOptions := &options.App{
 		Title:     title,
 		Width:     width,
 		Height:    height,
@@ -126,7 +126,18 @@ func main() {
 			WindowIsTranslucent:  false,
 			BackdropType:         windows.Mica,
 		},
-	})
+	}
+
+	if mode == "main" {
+		appOptions.SingleInstanceLock = &options.SingleInstanceLock{
+			UniqueId: "56006c0a-0498-4228-a320-c2409044a14e",
+			OnSecondInstanceLaunch: func(secondInstanceData options.SecondInstanceData) {
+				runtime.WindowShow(app.ctx)
+			},
+		}
+	}
+
+	err := wails.Run(appOptions)
 
 	if mode == "main" {
 		systray.Quit()

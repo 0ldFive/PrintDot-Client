@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/gen2brain/beeep"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -17,6 +18,7 @@ type App struct {
 	AppMode string
 	LogPort int
 	logsCmd *exec.Cmd
+	logsMu  sync.Mutex
 }
 
 // NewApp creates a new App application struct
@@ -81,6 +83,14 @@ func (a *App) Quit() {
 }
 
 func (a *App) ShowLogs() {
+	a.logsMu.Lock()
+	defer a.logsMu.Unlock()
+
+	if a.logsCmd != nil {
+		a.bridge.Log("Logs window already open")
+		return
+	}
+
 	if a.bridge.logPort > 0 {
 		// Spawn a new process of ourselves with special flags
 		exe, err := os.Executable()
@@ -94,6 +104,12 @@ func (a *App) ShowLogs() {
 			a.bridge.Log(fmt.Sprintf("Failed to spawn logs window: %v", err))
 		} else {
 			a.logsCmd = cmd
+			go func() {
+				cmd.Wait()
+				a.logsMu.Lock()
+				a.logsCmd = nil
+				a.logsMu.Unlock()
+			}()
 		}
 	} else {
 		a.bridge.Log("Log server not running")
@@ -103,6 +119,10 @@ func (a *App) ShowLogs() {
 func (a *App) Cleanup() {
 	// Stop log server
 	a.bridge.StopLogServer()
+
+	a.logsMu.Lock()
+	defer a.logsMu.Unlock()
+
 	// Kill logs window child process if running
 	if a.logsCmd != nil && a.logsCmd.Process != nil {
 		a.logsCmd.Process.Kill()
