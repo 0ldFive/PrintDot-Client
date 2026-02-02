@@ -131,12 +131,44 @@ type Response struct {
 }
 
 func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// Authentication check
+	if b.key != "" {
+		pass := r.URL.Query().Get("key")
+		if pass == "" {
+			pass = r.URL.Query().Get("password")
+		}
+
+		if pass != b.key {
+			b.Log(fmt.Sprintf("Authentication failed for %s", r.RemoteAddr))
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		b.Log(fmt.Sprintf("Upgrade error: %v", err))
 		return
 	}
 	defer c.Close()
+
+	b.Log(fmt.Sprintf("Client connected: %s", r.RemoteAddr))
+
+	// Send printer list immediately
+	printers, err := b.GetPrinters()
+	if err == nil {
+		msg := map[string]interface{}{
+			"type": "printer_list",
+			"data": printers,
+		}
+		if err := c.WriteJSON(msg); err != nil {
+			b.Log(fmt.Sprintf("Failed to send printer list: %v", err))
+		} else {
+			b.Log("Sent printer list to client")
+		}
+	} else {
+		b.Log(fmt.Sprintf("Failed to get printers: %v", err))
+	}
 
 	for {
 		_, message, err := c.ReadMessage()
@@ -147,13 +179,6 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		var req PrintRequest
 		if err := json.Unmarshal(message, &req); err != nil {
 			c.WriteJSON(Response{Status: "error", Message: "Invalid JSON"})
-			continue
-		}
-
-		// Auth check
-		if b.key != "" && req.Key != b.key {
-			b.Log("Authentication failed")
-			c.WriteJSON(Response{Status: "error", Message: "Invalid Key"})
 			continue
 		}
 

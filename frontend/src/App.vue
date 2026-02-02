@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { reactive, ref, onMounted, onUnmounted } from 'vue'
+import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
 import { GetPrinters, StartServer, StopServer, GetAppMode, GetLogPort } from '../wailsjs/go/main/App'
 
 const appMode = ref("main")
@@ -10,6 +10,14 @@ let logPollInterval: any = null
 const config = reactive({
   port: "1122",
   key: ""
+})
+
+const connectionUrl = computed(() => {
+  let url = `ws://localhost:${config.port}/ws`
+  if (config.key) {
+    url += `?key=${encodeURIComponent(config.key)}`
+  }
+  return url
 })
 
 const serverStatus = ref("Stopped")
@@ -140,6 +148,15 @@ onUnmounted(() => {
             <i-material-symbols-play-arrow v-else />
             {{ serverStatus === 'Running' ? 'Stop Server' : 'Start Server' }}
           </button>
+
+          <div class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
+            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Connection URL</label>
+            <div class="flex items-center gap-2">
+              <code class="flex-1 bg-white border border-gray-300 px-2 py-1.5 text-xs text-gray-600 rounded select-all font-mono break-all">
+                {{ connectionUrl }}
+              </code>
+            </div>
+          </div>
         </div>
 
         <!-- Printers -->
