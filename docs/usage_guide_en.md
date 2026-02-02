@@ -56,7 +56,16 @@ After the connection is established, the server immediately sends the current pr
 }
 ```
 
-#### 3.2.2 Send Print Job (Client -> Server)
+#### 3.2.2 Get Printer List (Client -> Server)
+The client can actively request the latest printer list at any time by sending the following JSON message:
+```json
+{
+  "type": "get_printers"
+}
+```
+The server will reply with a `printer_list` message in the same format as **3.2.1**.
+
+#### 3.2.3 Send Print Job (Client -> Server)
 The JSON data packet structure sent by the client is as follows:
 
 ```json
@@ -84,7 +93,7 @@ The JSON data packet structure sent by the client is as follows:
 | `orientation`| String | `portrait` or `landscape`. (RAW mode recommended using instructions) |
 | `dpi` | Integer | Target print DPI. (RAW mode recommended using instructions) |
 
-#### 3.2.3 Server Response (Server -> Client)
+#### 3.2.4 Server Response (Server -> Client)
 The server returns the result of each print:
 
 **Success Response:**
@@ -93,4 +102,24 @@ The server returns the result of each print:
   "status": "success",
   "message": "Printed successfully"
 }
+```
+
+### 3.3 Client Code Example
+
+```javascript
+socket.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'printer_list') {
+        console.log('Available printers:', msg.data);
+        
+        // Example: Actively refresh printer list
+        // socket.send(JSON.stringify({ type: 'get_printers' }));
+
+        // Send print job
+        socket.send(JSON.stringify({
+            printer: msg.data[0],
+            content: "^XA^FO50,50^FDHello^FS^XZ"
+        }));
+    }
+};
 ```

@@ -60,7 +60,16 @@ wails dev
 }
 ```
 
-#### 3.2.2 发送打印任务 (Client -> Server)
+#### 3.2.2 获取打印机列表 (Client -> Server)
+客户端可以随时发送以下 JSON 消息主动获取最新的打印机列表：
+```json
+{
+  "type": "get_printers"
+}
+```
+服务端将回复与 **3.2.1** 相同格式的 `printer_list` 消息。
+
+#### 3.2.3 发送打印任务 (Client -> Server)
 客户端发送的 JSON 数据包结构如下：
 
 ```json
@@ -88,7 +97,7 @@ wails dev
 | `orientation`| String | `portrait` (纵向) 或 `landscape` (横向)。(RAW模式建议使用指令控制) |
 | `dpi` | Integer | 目标打印 DPI。(RAW模式建议使用指令控制) |
 
-#### 3.2.3 服务端响应 (Server -> Client)
+#### 3.2.4 服务端响应 (Server -> Client)
 服务端会返回每次打印的结果：
 
 **成功响应:**
@@ -122,6 +131,9 @@ socket.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'printer_list') {
         console.log('可用打印机:', msg.data);
+
+        // 示例：主动刷新打印机列表
+        // socket.send(JSON.stringify({ type: 'get_printers' }));
         
         // 发送打印任务
         socket.send(JSON.stringify({

@@ -221,9 +221,21 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		b.onClientConnect(c.RemoteAddr().String())
 	}
 
+	// Send printer list immediately upon connection
+	printers, err := b.GetPrinters()
+	if err == nil {
+		c.WriteJSON(map[string]interface{}{
+			"type": "printer_list",
+			"data": printers,
+		})
+	} else {
+		b.Log(fmt.Sprintf("Failed to get printers on connect: %v", err))
+	}
+
 	for {
-		var req PrintRequest
-		err := c.ReadJSON(&req)
+		// Read message as raw JSON map first to check type
+		var rawMsg map[string]interface{}
+		err := c.ReadJSON(&rawMsg)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				b.Log(fmt.Sprintf("Client disconnected: %v", err))
@@ -231,6 +243,29 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				// Normal closure or other error
 			}
 			break
+		}
+
+		// Check message type
+		if msgType, ok := rawMsg["type"].(string); ok && msgType == "get_printers" {
+			printers, err := b.GetPrinters()
+			if err == nil {
+				c.WriteJSON(map[string]interface{}{
+					"type": "printer_list",
+					"data": printers,
+				})
+			} else {
+				c.WriteJSON(Response{Status: "error", Message: "Failed to get printer list"})
+			}
+			continue
+		}
+
+		// Handle as PrintRequest (default)
+		jsonBody, _ := json.Marshal(rawMsg)
+		var req PrintRequest
+		if err := json.Unmarshal(jsonBody, &req); err != nil {
+			b.Log(fmt.Sprintf("Invalid print request: %v", err))
+			c.WriteJSON(Response{Status: "error", Message: "Invalid request format"})
+			continue
 		}
 
 		// Handle print request
