@@ -95,6 +95,9 @@ func main() {
 			systray.SetTooltip(T("tray.tooltip"))
 
 			mShow := systray.AddMenuItem(T("tray.show"), T("tray.show"))
+			mHelp := systray.AddMenuItem(T("menu.help"), T("menu.help"))
+			mSettings := systray.AddMenuItem(T("menu.settings"), T("menu.settings"))
+			systray.AddSeparator()
 			mQuit := systray.AddMenuItem(T("tray.quit"), T("tray.quit"))
 
 			go func() {
@@ -105,6 +108,10 @@ func main() {
 							runtime.WindowShow(app.ctx)
 							// runtime.WindowSetFocus(app.ctx) // Not available in all versions
 						}
+					case <-mHelp.ClickedCh:
+						app.ShowHelp()
+					case <-mSettings.ClickedCh:
+						app.ShowSettings()
 					case <-mQuit.ClickedCh:
 						app.Quit()
 					}
