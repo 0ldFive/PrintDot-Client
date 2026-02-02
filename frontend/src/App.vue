@@ -7,8 +7,6 @@ const appMode = ref("main")
 const logPort = ref(0)
 const logs = ref<string[]>([])
 const clientCount = ref(0)
-const showToast = ref(false)
-const toastMessage = ref("")
 let logPollInterval: any = null
 
 const config = reactive({
@@ -26,14 +24,6 @@ const connectionUrl = computed(() => {
 
 const serverStatus = ref("Stopped")
 const printers = ref<string[]>([])
-
-const showNotification = (msg: string) => {
-  toastMessage.value = msg
-  showToast.value = true
-  setTimeout(() => {
-    showToast.value = false
-  }, 3000)
-}
 
 const refreshPrinters = async () => {
   try {
@@ -87,11 +77,7 @@ onMounted(async () => {
     
     // Listen for client count updates
     EventsOn("client_count", (count: number) => {
-      const prev = clientCount.value
       clientCount.value = count
-      if (count > prev) {
-        showNotification(`New client connected! Total: ${count}`)
-      }
     })
   }
 })
@@ -104,12 +90,6 @@ onUnmounted(() => {
 <template>
   <div class="h-screen w-screen overflow-hidden bg-white text-gray-900 font-sans text-left flex flex-col relative">
     
-    <!-- Toast Notification -->
-    <div v-if="showToast" class="fixed top-4 right-4 z-50 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg flex items-center gap-2 animate-bounce">
-      <i-material-symbols-info class="text-blue-400" />
-      <span>{{ toastMessage }}</span>
-    </div>
-
     <!-- Content Area -->
     <div class="flex-1 overflow-hidden relative">
       

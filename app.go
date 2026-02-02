@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/gen2brain/beeep"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -44,8 +45,14 @@ func (a *App) startup(ctx context.Context) {
 	})
 
 	// Setup client count callback
+	lastCount := 0
 	a.bridge.SetCountCallback(func(count int) {
 		runtime.EventsEmit(a.ctx, "client_count", count)
+		if count > lastCount {
+			// Notify system on new connection
+			beeep.Notify("PrintDot Client", fmt.Sprintf("New client connected! Total: %d", count), "")
+		}
+		lastCount = count
 	})
 
 	a.bridge.StartLogServer()
