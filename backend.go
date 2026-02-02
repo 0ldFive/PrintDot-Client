@@ -32,13 +32,15 @@ type Bridge struct {
 	clientCount   int
 	countMu       sync.Mutex
 	onCountChange func(int) // Callback to update frontend
+	conns         map[*websocket.Conn]bool
 }
 
 func NewBridge() *Bridge {
 	return &Bridge{
-		port: "1122",
-		key:  "",
-		logs: make([]string, 0),
+		port:  "1122",
+		key:   "",
+		logs:  make([]string, 0),
+		conns: make(map[*websocket.Conn]bool),
 	}
 }
 
@@ -125,6 +127,15 @@ func (b *Bridge) StopServer() error {
 		return nil
 	}
 
+	// Close all active connections first
+	b.countMu.Lock()
+	for conn := range b.conns {
+		conn.Close()
+	}
+	// Clear the map
+	b.conns = make(map[*websocket.Conn]bool)
+	b.countMu.Unlock()
+
 	if err := b.server.Shutdown(context.Background()); err != nil {
 		return err
 	}
@@ -176,8 +187,17 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 
+	b.countMu.Lock()
+	b.conns[c] = true
+	b.countMu.Unlock()
+
 	b.updateClientCount(1)
-	defer b.updateClientCount(-1)
+	defer func() {
+		b.countMu.Lock()
+		delete(b.conns, c)
+		b.countMu.Unlock()
+		b.updateClientCount(-1)
+	}()
 
 	b.Log(fmt.Sprintf("Client connected: %s", r.RemoteAddr))
 
