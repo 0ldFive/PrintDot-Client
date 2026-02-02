@@ -36,10 +36,11 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:    "print-dot-client",
-		Width:    600,
-		Height:   500,
-		MinWidth: 380,
+		Title:     "print-dot-client",
+		Width:     380,
+		MinWidth:  380,
+		Height:    600,
+		MinHeight: 600,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
