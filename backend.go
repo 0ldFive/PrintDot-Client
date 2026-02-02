@@ -285,6 +285,17 @@ func (b *Bridge) StartLogServer() error {
 	return nil
 }
 
+func (b *Bridge) StopLogServer() error {
+	if b.logServer == nil {
+		return nil
+	}
+	if err := b.logServer.Shutdown(context.Background()); err != nil {
+		return err
+	}
+	b.logServer = nil
+	return nil
+}
+
 func (b *Bridge) handleLogs(w http.ResponseWriter, r *http.Request) {
 	b.logsMu.Lock()
 	// Copy logs to avoid holding lock during template execution

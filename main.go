@@ -39,8 +39,6 @@ func main() {
 	// Create an instance of the app structure
 	app := NewApp(mode, logPort)
 
-	var isQuitting bool
-
 	// Configure based on mode
 	title := "print-dot-client"
 	width := 380
@@ -59,23 +57,19 @@ func main() {
 		})
 		FileMenu.AddSeparator()
 		FileMenu.AddText("Quit", keys.CmdOrCtrl("q"), func(_ *menu.CallbackData) {
-			isQuitting = true
 			app.Quit()
 		})
 
 		onBeforeClose = func(ctx context.Context) bool {
-			if isQuitting {
-				return false
-			}
-			runtime.WindowHide(ctx)
-			return true
+			app.Cleanup()
+			return false
 		}
 
 		// Start system tray
 		go systray.Run(func() {
 			systray.SetIcon(icon)
 			systray.SetTitle("Print Bridge")
-			systray.SetTooltip("Print Bridge Client")
+			systray.SetTooltip("PrintDot Client")
 
 			mShow := systray.AddMenuItem("Show Main Window", "Show the application window")
 			mQuit := systray.AddMenuItem("Quit", "Quit the application")
@@ -89,7 +83,7 @@ func main() {
 							// runtime.WindowSetFocus(app.ctx) // Not available in all versions
 						}
 					case <-mQuit.ClickedCh:
-						isQuitting = true
+						app.Cleanup()
 						if app.ctx != nil {
 							runtime.Quit(app.ctx)
 						} else {

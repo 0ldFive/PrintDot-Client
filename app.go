@@ -15,6 +15,7 @@ type App struct {
 	bridge  *Bridge
 	AppMode string
 	LogPort int
+	logsCmd *exec.Cmd
 }
 
 // NewApp creates a new App application struct
@@ -79,9 +80,21 @@ func (a *App) ShowLogs() {
 		cmd := exec.Command(exe, "logs", fmt.Sprintf("%d", a.bridge.logPort))
 		if err := cmd.Start(); err != nil {
 			a.bridge.Log(fmt.Sprintf("Failed to spawn logs window: %v", err))
+		} else {
+			a.logsCmd = cmd
 		}
 	} else {
 		a.bridge.Log("Log server not running")
+	}
+}
+
+func (a *App) Cleanup() {
+	// Stop log server
+	a.bridge.StopLogServer()
+	// Kill logs window child process if running
+	if a.logsCmd != nil && a.logsCmd.Process != nil {
+		a.logsCmd.Process.Kill()
+		a.logsCmd = nil
 	}
 }
 
