@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +14,9 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+//go:embed docs
+var usageGuides embed.FS
 
 // App struct
 type App struct {
@@ -132,39 +136,17 @@ func (a *App) Quit() {
 // Wails Methods
 
 func (a *App) GetUsageGuide() string {
-	return `# PrintDot Client Usage Guide
+	lang := a.settings.Get().Language
+	filename := "docs/usage_guide_en.md"
+	if lang == "zh-CN" {
+		filename = "docs/usage_guide_zh.md"
+	}
 
-## Introduction
-PrintDot Client is a lightweight, cross-platform printing service bridge that exposes local printers via WebSocket and HTTP APIs.
-
-## Features
-- **Raw Printing**: Send ZPL, EPL, or other raw commands directly to printers.
-- **WebSocket API**: Real-time printing communication.
-- **HTTP API**: Simple REST endpoints for status and logging.
-- **System Tray**: Minimized background operation.
-- **Multi-language Support**: English and Simplified Chinese.
-
-## Connection
-- **Port**: 1122 (Default)
-- **WebSocket URL**: ws://localhost:1122/ws
-- **Authentication**: Optional security key configurable in Settings.
-
-## Usage
-1. **Start the Service**: Launch the application. The server starts automatically.
-2. **Configure**: Open Settings to set port, security key, or auto-start preferences.
-3. **Connect**: Use your web application to connect to the WebSocket URL.
-4. **Print**: Send JSON print requests to the WebSocket.
-
-## JSON Request Format
-` + "```" + `json
-{
-  "printer": "ZDesigner GK888t",
-  "content": "^XA^FO50,50^ADN,36,20^FDHello World^FS^XZ",
-  "copies": 1,
-  "jobName": "MyLabel"
-}
-` + "```" + `
-`
+	content, err := usageGuides.ReadFile(filename)
+	if err != nil {
+		return "# Error\n\nFailed to load usage guide: " + err.Error()
+	}
+	return string(content)
 }
 
 func (a *App) GetSettings() AppSettings {
