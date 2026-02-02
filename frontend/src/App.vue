@@ -1,10 +1,14 @@
 <script lang="ts" setup>
 import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
 import { GetPrinters, StartServer, StopServer, GetAppMode, GetLogPort } from '../wailsjs/go/main/App'
+import { EventsOn } from '../wailsjs/runtime/runtime'
 
 const appMode = ref("main")
 const logPort = ref(0)
 const logs = ref<string[]>([])
+const clientCount = ref(0)
+const showToast = ref(false)
+const toastMessage = ref("")
 let logPollInterval: any = null
 
 const config = reactive({
@@ -22,6 +26,14 @@ const connectionUrl = computed(() => {
 
 const serverStatus = ref("Stopped")
 const printers = ref<string[]>([])
+
+const showNotification = (msg: string) => {
+  toastMessage.value = msg
+  showToast.value = true
+  setTimeout(() => {
+    showToast.value = false
+  }, 3000)
+}
 
 const refreshPrinters = async () => {
   try {
@@ -72,6 +84,15 @@ onMounted(async () => {
     // Main mode
     await refreshPrinters()
     await toggleServer()
+    
+    // Listen for client count updates
+    EventsOn("client_count", (count: number) => {
+      const prev = clientCount.value
+      clientCount.value = count
+      if (count > prev) {
+        showNotification(`New client connected! Total: ${count}`)
+      }
+    })
   }
 })
 
@@ -83,6 +104,12 @@ onUnmounted(() => {
 <template>
   <div class="h-screen w-screen overflow-hidden bg-white text-gray-900 font-sans text-left flex flex-col relative">
     
+    <!-- Toast Notification -->
+    <div v-if="showToast" class="fixed top-4 right-4 z-50 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg flex items-center gap-2 animate-bounce">
+      <i-material-symbols-info class="text-blue-400" />
+      <span>{{ toastMessage }}</span>
+    </div>
+
     <!-- Content Area -->
     <div class="flex-1 overflow-hidden relative">
       
@@ -112,12 +139,30 @@ onUnmounted(() => {
       <!-- MAIN APP UI -->
       <div v-else class="w-full h-full flex flex-col">
         <!-- Header -->
-        <header class="p-4 border-b border-gray-200 bg-gray-50 flex-none">
-          <h1 class="text-xl font-bold text-gray-800 mb-1 flex items-center gap-2">
-            <i-material-symbols-print-connect class="text-blue-600" />
-            PrintDot Client
-          </h1>
-          <p class="text-xs text-gray-500">WebSocket Printer Bridge</p>
+        <header 
+          class="p-4 border-b border-gray-200 flex-none transition-colors duration-300"
+          :class="clientCount > 0 ? 'bg-green-600 text-white' : 'bg-gray-50 text-gray-900'"
+        >
+          <div class="flex justify-between items-center">
+            <div>
+              <h1 class="text-xl font-bold mb-1 flex items-center gap-2">
+                <i-material-symbols-print-connect :class="clientCount > 0 ? 'text-white' : 'text-blue-600'" />
+                PrintDot Client
+              </h1>
+              <p class="text-xs" :class="clientCount > 0 ? 'text-green-100' : 'text-gray-500'">
+                WebSocket Printer Bridge
+              </p>
+            </div>
+            
+            <!-- Client Count Badge -->
+            <div 
+              class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+              :class="clientCount > 0 ? 'bg-white text-green-700 shadow-sm' : 'bg-gray-200 text-gray-600'"
+            >
+              <i-material-symbols-devices />
+              <span>{{ clientCount }} Clients</span>
+            </div>
+          </div>
         </header>
 
         <div class="flex-1 overflow-y-auto scrollbar-hide">

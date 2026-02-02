@@ -27,6 +27,11 @@ type Bridge struct {
 	logsMu    sync.Mutex
 	logServer *http.Server
 	logPort   int
+
+	// Connection tracking
+	clientCount   int
+	countMu       sync.Mutex
+	onCountChange func(int) // Callback to update frontend
 }
 
 func NewBridge() *Bridge {
@@ -39,6 +44,21 @@ func NewBridge() *Bridge {
 
 func (b *Bridge) SetLogger(logger func(string)) {
 	b.log = logger
+}
+
+func (b *Bridge) SetCountCallback(cb func(int)) {
+	b.onCountChange = cb
+}
+
+func (b *Bridge) updateClientCount(delta int) {
+	b.countMu.Lock()
+	b.clientCount += delta
+	count := b.clientCount
+	b.countMu.Unlock()
+
+	if b.onCountChange != nil {
+		b.onCountChange(count)
+	}
 }
 
 func (b *Bridge) Log(msg string) {
@@ -155,6 +175,9 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer c.Close()
+
+	b.updateClientCount(1)
+	defer b.updateClientCount(-1)
 
 	b.Log(fmt.Sprintf("Client connected: %s", r.RemoteAddr))
 

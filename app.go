@@ -43,6 +43,11 @@ func (a *App) startup(ctx context.Context) {
 		fmt.Println(msg)
 	})
 
+	// Setup client count callback
+	a.bridge.SetCountCallback(func(count int) {
+		runtime.EventsEmit(a.ctx, "client_count", count)
+	})
+
 	a.bridge.StartLogServer()
 	a.bridge.Log("Application started")
 }

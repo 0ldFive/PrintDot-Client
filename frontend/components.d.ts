@@ -12,7 +12,9 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     IMaterialSymbolsDeleteOutline: typeof import('~icons/material-symbols/delete-outline')['default']
+    IMaterialSymbolsDevices: typeof import('~icons/material-symbols/devices')['default']
     IMaterialSymbolsDns: typeof import('~icons/material-symbols/dns')['default']
+    IMaterialSymbolsInfo: typeof import('~icons/material-symbols/info')['default']
     IMaterialSymbolsPlayArrow: typeof import('~icons/material-symbols/play-arrow')['default']
     IMaterialSymbolsPrint: typeof import('~icons/material-symbols/print')['default']
     IMaterialSymbolsPrintConnect: typeof import('~icons/material-symbols/print-connect')['default']
