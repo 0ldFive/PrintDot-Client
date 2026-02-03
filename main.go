@@ -16,7 +16,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
-	"github.com/getlantern/systray"
+	"github.com/energye/systray"
 )
 
 //go:embed all:frontend/dist
@@ -94,29 +94,36 @@ func main() {
 			systray.SetTitle(T("tray.title"))
 			systray.SetTooltip(T("tray.tooltip"))
 
+			systray.SetOnClick(func(menu systray.IMenu) {
+				if app.ctx != nil {
+					runtime.WindowShow(app.ctx)
+				}
+			})
+			systray.SetOnRClick(func(menu systray.IMenu) {
+				menu.ShowMenu()
+			})
+
 			mShow := systray.AddMenuItem(T("tray.show"), T("tray.show"))
 			mHelp := systray.AddMenuItem(T("menu.help"), T("menu.help"))
 			mSettings := systray.AddMenuItem(T("menu.settings"), T("menu.settings"))
 			systray.AddSeparator()
 			mQuit := systray.AddMenuItem(T("tray.quit"), T("tray.quit"))
 
-			go func() {
-				for {
-					select {
-					case <-mShow.ClickedCh:
-						if app.ctx != nil {
-							runtime.WindowShow(app.ctx)
-							// runtime.WindowSetFocus(app.ctx) // Not available in all versions
-						}
-					case <-mHelp.ClickedCh:
-						app.ShowHelp()
-					case <-mSettings.ClickedCh:
-						app.ShowSettings()
-					case <-mQuit.ClickedCh:
-						app.Quit()
-					}
+			mShow.Click(func() {
+				if app.ctx != nil {
+					runtime.WindowShow(app.ctx)
+					// runtime.WindowSetFocus(app.ctx) // Not available in all versions
 				}
-			}()
+			})
+			mHelp.Click(func() {
+				app.ShowHelp()
+			})
+			mSettings.Click(func() {
+				app.ShowSettings()
+			})
+			mQuit.Click(func() {
+				app.Quit()
+			})
 		}, func() {
 			// Cleanup if needed
 		})
