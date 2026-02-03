@@ -9,17 +9,17 @@
   "tray": {
     "show": "Show Main Window",
     "quit": "Quit",
-    "title": "PrintDot Client",
-    "tooltip": "PrintDot Client"
+    "title": "PrintDot",
+    "tooltip": "PrintDot"
   },
   "window": {
     "logs": "System Logs",
     "help": "Help - Usage Guide",
     "settings": "Settings",
-    "main": "PrintDot Client"
+    "main": "PrintDot"
   },
   "notification": {
-    "title": "PrintDot Client",
+    "title": "PrintDot",
     "connected": "Client connected: %s"
   }
 }

@@ -9,17 +9,17 @@
   "tray": {
     "show": "显示主窗口",
     "quit": "退出",
-    "title": "PrintDot 打印服务",
-    "tooltip": "PrintDot 打印服务"
+    "title": "PrintDot",
+    "tooltip": "PrintDot"
   },
   "window": {
     "logs": "系统日志",
     "help": "帮助 - 使用指南",
     "settings": "设置",
-    "main": "PrintDot 打印服务"
+    "main": "PrintDot"
   },
   "notification": {
-    "title": "PrintDot 打印服务",
+    "title": "PrintDot",
     "connected": "客户端已连接: %s"
   }
 }

@@ -16,7 +16,7 @@
     "cancel": "取消"
   },
   "main": {
-    "title": "PrintDot 客户端",
+    "title": "PrintDot",
     "subtitle": "WebSocket 打印桥接器",
     "clients": "客户端",
     "serverControl": "服务控制",

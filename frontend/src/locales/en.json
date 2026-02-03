@@ -16,7 +16,7 @@
     "cancel": "Cancel"
   },
   "main": {
-    "title": "PrintDot Client",
+    "title": "PrintDot",
     "subtitle": "WebSocket Printer Bridge",
     "clients": "Clients",
     "serverControl": "Server Control",
