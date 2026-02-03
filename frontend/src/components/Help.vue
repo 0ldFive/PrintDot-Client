@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { GetUsageGuide } from '../../wailsjs/go/main/App'
-import MarkdownIt from 'markdown-it'
+import { marked } from 'marked'
 
 const content = ref('')
-const md = new MarkdownIt()
 
 onMounted(async () => {
   try {
     const markdown = await GetUsageGuide()
-    content.value = md.render(markdown)
+    content.value = await marked.parse(markdown)
   } catch (e) {
     console.error(e)
     content.value = '<p class="text-red-500">Failed to load usage guide.</p>'
@@ -52,5 +51,20 @@ onMounted(async () => {
 }
 .prose pre code {
   @apply bg-transparent p-0 text-gray-100;
+}
+.prose table {
+  @apply min-w-full border-collapse border border-gray-300 mb-4;
+}
+.prose thead {
+  @apply bg-gray-100;
+}
+.prose th {
+  @apply border border-gray-300 px-4 py-2 text-left font-semibold text-gray-700;
+}
+.prose td {
+  @apply border border-gray-300 px-4 py-2 text-gray-600;
+}
+.prose tr:nth-child(even) {
+  @apply bg-gray-50;
 }
 </style>
