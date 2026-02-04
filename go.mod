@@ -7,6 +7,7 @@ require (
 	github.com/cloudfoundry/jibber_jabber v0.0.0-20151120183258-bcc4c8345a21
 	github.com/energye/systray v1.0.3
 	github.com/gen2brain/beeep v0.11.2
+	github.com/go-toast/toast v0.0.0-20190211030409-01e6764cf0a4
 	github.com/gorilla/websocket v1.5.3
 	github.com/wailsapp/wails/v2 v2.11.0
 )
@@ -16,7 +17,6 @@ require (
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/esiqveland/notify v0.13.3 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
-	github.com/go-toast/toast v0.0.0-20190211030409-01e6764cf0a4 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
