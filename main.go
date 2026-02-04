@@ -95,9 +95,11 @@ func main() {
 			systray.SetTooltip(T("tray.tooltip"))
 
 			systray.SetOnClick(func(menu systray.IMenu) {
-				if app.ctx != nil {
-					runtime.WindowShow(app.ctx)
-				}
+				go func() {
+					if app.ctx != nil {
+						runtime.WindowShow(app.ctx)
+					}
+				}()
 			})
 			systray.SetOnRClick(func(menu systray.IMenu) {
 				menu.ShowMenu()
@@ -110,19 +112,20 @@ func main() {
 			mQuit := systray.AddMenuItem(T("tray.quit"), T("tray.quit"))
 
 			mShow.Click(func() {
-				if app.ctx != nil {
-					runtime.WindowShow(app.ctx)
-					// runtime.WindowSetFocus(app.ctx) // Not available in all versions
-				}
+				go func() {
+					if app.ctx != nil {
+						runtime.WindowShow(app.ctx)
+					}
+				}()
 			})
 			mHelp.Click(func() {
-				app.ShowHelp()
+				go app.ShowHelp()
 			})
 			mSettings.Click(func() {
-				app.ShowSettings()
+				go app.ShowSettings()
 			})
 			mQuit.Click(func() {
-				app.Quit()
+				go app.Quit()
 			})
 		}, func() {
 			// Cleanup if needed

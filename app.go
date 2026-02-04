@@ -6,13 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	sys_runtime "runtime"
 	"strconv"
 	"sync"
 
-	"github.com/gen2brain/beeep"
-	"github.com/go-toast/toast"
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/menu/keys"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -69,44 +65,6 @@ func (a *App) startup(ctx context.Context) {
 	// Bind client connect
 	a.bridge.SetClientConnectCallback(func(clientInfo string) {
 		runtime.EventsEmit(ctx, "client_connected", clientInfo)
-
-		// System Notification
-		LoadLocales(a.settings.Get().Language)
-		title := T("notification.title")
-		msg := T("notification.connected", clientInfo)
-
-		// Use beeep or native toast on Windows to set AppID
-		go func() {
-			// Try to use absolute path for icon if empty string doesn't work well
-			iconPath := ""
-			if _, err := os.Stat("build/appicon.png"); err == nil {
-				if absPath, err := filepath.Abs("build/appicon.png"); err == nil {
-					iconPath = absPath
-				}
-			}
-
-			if a.AppMode == "main" && sys_runtime.GOOS == "windows" {
-				// Use go-toast/toast directly for Windows to set AppID
-				notification := toast.Notification{
-					AppID:   "PrintDot",
-					Title:   title,
-					Message: msg,
-					Icon:    iconPath,
-				}
-				err := notification.Push()
-				if err != nil {
-					fmt.Printf("Failed to send windows notification: %v\n", err)
-					// Fallback to beeep
-					beeep.Notify(title, msg, iconPath)
-				}
-			} else {
-				// Use beeep for other platforms
-				err := beeep.Notify(title, msg, iconPath)
-				if err != nil {
-					fmt.Printf("Failed to send notification: %v\n", err)
-				}
-			}
-		}()
 	})
 
 	if a.AppMode == "main" {
