@@ -85,51 +85,54 @@ func main() {
 		}
 
 		// Start system tray
-		go systray.Run(func() {
-			if sys_runtime.GOOS == "windows" {
-				systray.SetIcon(iconIco)
-			} else {
-				systray.SetIcon(icon)
-			}
-			systray.SetTitle(T("tray.title"))
-			systray.SetTooltip(T("tray.tooltip"))
+		go func() {
+			sys_runtime.LockOSThread()
+			systray.Run(func() {
+				if sys_runtime.GOOS == "windows" {
+					systray.SetIcon(iconIco)
+				} else {
+					systray.SetIcon(icon)
+				}
+				systray.SetTitle(T("tray.title"))
+				systray.SetTooltip(T("tray.tooltip"))
 
-			systray.SetOnClick(func(menu systray.IMenu) {
-				go func() {
-					if app.ctx != nil {
-						runtime.WindowShow(app.ctx)
-					}
-				}()
-			})
-			systray.SetOnRClick(func(menu systray.IMenu) {
-				menu.ShowMenu()
-			})
+				systray.SetOnClick(func(menu systray.IMenu) {
+					go func() {
+						if app.ctx != nil {
+							runtime.WindowShow(app.ctx)
+						}
+					}()
+				})
+				systray.SetOnRClick(func(menu systray.IMenu) {
+					menu.ShowMenu()
+				})
 
-			mShow := systray.AddMenuItem(T("tray.show"), T("tray.show"))
-			mHelp := systray.AddMenuItem(T("menu.help"), T("menu.help"))
-			mSettings := systray.AddMenuItem(T("menu.settings"), T("menu.settings"))
-			systray.AddSeparator()
-			mQuit := systray.AddMenuItem(T("tray.quit"), T("tray.quit"))
+				mShow := systray.AddMenuItem(T("tray.show"), T("tray.show"))
+				mHelp := systray.AddMenuItem(T("menu.help"), T("menu.help"))
+				mSettings := systray.AddMenuItem(T("menu.settings"), T("menu.settings"))
+				systray.AddSeparator()
+				mQuit := systray.AddMenuItem(T("tray.quit"), T("tray.quit"))
 
-			mShow.Click(func() {
-				go func() {
-					if app.ctx != nil {
-						runtime.WindowShow(app.ctx)
-					}
-				}()
+				mShow.Click(func() {
+					go func() {
+						if app.ctx != nil {
+							runtime.WindowShow(app.ctx)
+						}
+					}()
+				})
+				mHelp.Click(func() {
+					go app.ShowHelp()
+				})
+				mSettings.Click(func() {
+					go app.ShowSettings()
+				})
+				mQuit.Click(func() {
+					go app.Quit()
+				})
+			}, func() {
+				// Cleanup if needed
 			})
-			mHelp.Click(func() {
-				go app.ShowHelp()
-			})
-			mSettings.Click(func() {
-				go app.ShowSettings()
-			})
-			mQuit.Click(func() {
-				go app.Quit()
-			})
-		}, func() {
-			// Cleanup if needed
-		})
+		}()
 	} else if mode == "logs" {
 		// Logs Window Configuration
 		title = T("window.logs")
