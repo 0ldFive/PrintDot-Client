@@ -13,6 +13,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -229,10 +230,14 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Send printer list immediately upon connection
 	printers, err := b.GetPrinters()
 	if err == nil {
-		c.WriteJSON(map[string]interface{}{
+		msg := map[string]interface{}{
 			"type": "printer_list",
 			"data": printers,
-		})
+		}
+		if jsonBytes, err := json.Marshal(msg); err == nil {
+			b.Log(fmt.Sprintf("Sent WS message: %s", string(jsonBytes)))
+		}
+		c.WriteJSON(msg)
 	} else {
 		b.Log(fmt.Sprintf("Failed to get printers on connect: %v", err))
 	}
@@ -250,16 +255,28 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
+		if jsonBytes, err := json.Marshal(rawMsg); err == nil {
+			b.Log(fmt.Sprintf("Received WS message: %s", string(jsonBytes)))
+		}
+
 		// Check message type
 		if msgType, ok := rawMsg["type"].(string); ok && msgType == "get_printers" {
 			printers, err := b.GetPrinters()
 			if err == nil {
-				c.WriteJSON(map[string]interface{}{
+				msg := map[string]interface{}{
 					"type": "printer_list",
 					"data": printers,
-				})
+				}
+				if jsonBytes, err := json.Marshal(msg); err == nil {
+					b.Log(fmt.Sprintf("Sent WS message: %s", string(jsonBytes)))
+				}
+				c.WriteJSON(msg)
 			} else {
-				c.WriteJSON(Response{Status: "error", Message: "Failed to get printer list"})
+				resp := Response{Status: "error", Message: "Failed to get printer list"}
+				if jsonBytes, err := json.Marshal(resp); err == nil {
+					b.Log(fmt.Sprintf("Sent WS message: %s", string(jsonBytes)))
+				}
+				c.WriteJSON(resp)
 			}
 			continue
 		}
@@ -269,7 +286,11 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		var req PrintRequest
 		if err := json.Unmarshal(jsonBody, &req); err != nil {
 			b.Log(fmt.Sprintf("Invalid print request: %v", err))
-			c.WriteJSON(Response{Status: "error", Message: "Invalid request format"})
+			resp := Response{Status: "error", Message: "Invalid request format"}
+			if jsonBytes, err := json.Marshal(resp); err == nil {
+				b.Log(fmt.Sprintf("Sent WS message: %s", string(jsonBytes)))
+			}
+			c.WriteJSON(resp)
 			continue
 		}
 
@@ -299,7 +320,16 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 			// Check if content is Base64 encoded PDF/Image and convert to Raw bytes/ZPL
 			var dataToPrint []byte
-			decoded, errDecode := base64.StdEncoding.DecodeString(req.Content)
+
+			// Handle Data URI scheme (e.g., "data:image/png;base64,...")
+			contentToDecode := req.Content
+			if strings.HasPrefix(contentToDecode, "data:") {
+				if idx := strings.Index(contentToDecode, ","); idx != -1 {
+					contentToDecode = contentToDecode[idx+1:]
+				}
+			}
+
+			decoded, errDecode := base64.StdEncoding.DecodeString(contentToDecode)
 			if errDecode == nil {
 				// 1. Check for PDF signature
 				if len(decoded) > 4 && string(decoded[0:4]) == "%PDF" {
@@ -335,16 +365,28 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		if successCount == req.Copies {
 			b.Log("Print success")
-			c.WriteJSON(Response{Status: "success", Message: "Printed successfully"})
+			resp := Response{Status: "success", Message: "Printed successfully"}
+			if jsonBytes, err := json.Marshal(resp); err == nil {
+				b.Log(fmt.Sprintf("Sent WS message: %s", string(jsonBytes)))
+			}
+			c.WriteJSON(resp)
 		} else {
 			msg := fmt.Sprintf("Printed %d/%d copies. Error: %v", successCount, req.Copies, lastErr)
 			b.Log(msg)
-			c.WriteJSON(Response{Status: "error", Message: msg})
+			resp := Response{Status: "error", Message: msg}
+			if jsonBytes, err := json.Marshal(resp); err == nil {
+				b.Log(fmt.Sprintf("Sent WS message: %s", string(jsonBytes)))
+			}
+			c.WriteJSON(resp)
 		}
 	}
 }
 
 func (b *Bridge) printRaw(printerName string, jobName string, data []byte) error {
+	// Log the data being sent to the printer
+	// Using %q to safely escape binary data while keeping text readable
+	b.Log(fmt.Sprintf("Forwarding to printer '%s' (Job: %s): %q", printerName, jobName, data))
+
 	p, err := printer.Open(printerName)
 	if err != nil {
 		return err
@@ -367,10 +409,13 @@ func (b *Bridge) printRaw(printerName string, jobName string, data []byte) error
 	}
 	defer p.EndPage()
 
-	_, err = p.Write(data)
+	n, err := p.Write(data)
 	if err != nil {
 		return err
 	}
+
+	// Log the result returned by the printer (write success)
+	b.Log(fmt.Sprintf("Printer returned: Success (%d bytes written)", n))
 
 	return nil
 }
