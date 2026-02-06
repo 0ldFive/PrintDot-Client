@@ -1,10 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"log"
 	"net"
 	"net/http"
@@ -292,7 +297,32 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				// b.Log("Warning: Orientation/DPI settings are ignored in RAW mode. Please set them in your printer commands.")
 			}
 
-			err = b.printRaw(req.Printer, req.JobName, []byte(req.Content))
+			// Check if content is Base64 encoded PDF/Image and convert to Raw bytes/ZPL
+			var dataToPrint []byte
+			decoded, errDecode := base64.StdEncoding.DecodeString(req.Content)
+			if errDecode == nil {
+				// 1. Check for PDF signature
+				if len(decoded) > 4 && string(decoded[0:4]) == "%PDF" {
+					b.Log("Detected PDF content, converting Base64 to Raw bytes...")
+					dataToPrint = decoded
+				} else {
+					// 2. Try to decode as Image
+					img, format, errImg := image.Decode(bytes.NewReader(decoded))
+					if errImg == nil {
+						b.Log(fmt.Sprintf("Detected %s image, converting to ZPL...", format))
+						dataToPrint = imageToZPL(img)
+					} else {
+						// 3. Fallback: Treat decoded bytes as Raw data (maybe user sent Base64 encoded ZPL?)
+						// b.Log("Base64 decoded but not PDF/Image, using decoded bytes as Raw...")
+						dataToPrint = decoded
+					}
+				}
+			} else {
+				// Not Base64, treat string as Raw commands
+				dataToPrint = []byte(req.Content)
+			}
+
+			err = b.printRaw(req.Printer, req.JobName, dataToPrint)
 			if err != nil {
 				lastErr = err
 				b.Log(fmt.Sprintf("Print error (copy %d): %v", i+1, err))
