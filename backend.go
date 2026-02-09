@@ -1,23 +1,21 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"image"
-	_ "image/jpeg"
-	_ "image/png"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/alexbrainman/printer"
 	"github.com/gorilla/websocket"
 )
 
@@ -105,11 +103,7 @@ func (b *Bridge) Log(msg string) {
 }
 
 func (b *Bridge) GetPrinters() ([]string, error) {
-	names, err := printer.ReadNames()
-	if err != nil {
-		return nil, err
-	}
-	return names, nil
+	return b.getPrintersPlatform()
 }
 
 func (b *Bridge) StartServer(port string, key string) error {
@@ -174,13 +168,14 @@ var upgrader = websocket.Upgrader{
 
 type PrintRequest struct {
 	Printer     string `json:"printer"`
-	Content     string `json:"content"` // Raw string or base64? Let's assume string for now
+	Content     string `json:"content"` // Base64 encoded PDF
 	Key         string `json:"key"`
 	JobName     string `json:"jobName"`
 	Copies      int    `json:"copies"`      // Number of copies
-	Orientation string `json:"orientation"` // "portrait" or "landscape" (requires driver support/GDI)
-	DPI         int    `json:"dpi"`         // Print DPI (requires driver support/GDI)
-	JobInterval int    `json:"jobInterval"` // Delay between copies in ms (for "interleaved" manual handling)
+	JobInterval int    `json:"jobInterval"` // Delay between copies in ms
+	// Legacy fields ignored but kept for compatibility
+	Orientation string `json:"orientation"`
+	DPI         int    `json:"dpi"`
 }
 
 type Response struct {
@@ -287,76 +282,47 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(jsonBody, &req); err != nil {
 			b.Log(fmt.Sprintf("Invalid print request: %v", err))
 			resp := Response{Status: "error", Message: "Invalid request format"}
-			if jsonBytes, err := json.Marshal(resp); err == nil {
-				b.Log(fmt.Sprintf("Sent WS message: %s", string(jsonBytes)))
-			}
 			c.WriteJSON(resp)
 			continue
 		}
 
-		// Handle print request
-		// b.Log(fmt.Sprintf("Received print job for %s: %s...", req.Printer, req.JobName))
-
-		// If copies > 1, loop and print
 		if req.Copies <= 0 {
 			req.Copies = 1
+		}
+
+		// Validate Content is PDF Base64
+		contentToDecode := req.Content
+		if strings.HasPrefix(contentToDecode, "data:") {
+			if idx := strings.Index(contentToDecode, ","); idx != -1 {
+				contentToDecode = contentToDecode[idx+1:]
+			}
+		}
+		decoded, err := base64.StdEncoding.DecodeString(contentToDecode)
+		if err != nil {
+			b.Log("Error decoding Base64 content")
+			c.WriteJSON(Response{Status: "error", Message: "Invalid Base64 content"})
+			continue
+		}
+
+		// Strict PDF check
+		if len(decoded) < 4 || string(decoded[0:4]) != "%PDF" {
+			b.Log("Content is not a valid PDF (missing %PDF header)")
+			c.WriteJSON(Response{Status: "error", Message: "Content must be a PDF file"})
+			continue
 		}
 
 		successCount := 0
 		var lastErr error
 
 		for i := 0; i < req.Copies; i++ {
-			// If interval is set, wait before next copy (but not before first)
 			if i > 0 && req.JobInterval > 0 {
 				time.Sleep(time.Duration(req.JobInterval) * time.Millisecond)
 			}
 
-			// Note: Orientation and DPI are currently ignored for RAW printing as they usually
-			// need to be embedded in the RAW commands (ZPL/EPL) or require GDI printing.
-			// We expose them in the struct for future GDI implementation or driver manipulation.
-			if req.Orientation != "" || req.DPI > 0 {
-				// b.Log("Warning: Orientation/DPI settings are ignored in RAW mode. Please set them in your printer commands.")
-			}
-
-			// Check if content is Base64 encoded PDF/Image and convert to Raw bytes/ZPL
-			var dataToPrint []byte
-
-			// Handle Data URI scheme (e.g., "data:image/png;base64,...")
-			contentToDecode := req.Content
-			if strings.HasPrefix(contentToDecode, "data:") {
-				if idx := strings.Index(contentToDecode, ","); idx != -1 {
-					contentToDecode = contentToDecode[idx+1:]
-				}
-			}
-
-			decoded, errDecode := base64.StdEncoding.DecodeString(contentToDecode)
-			if errDecode == nil {
-				// 1. Check for PDF signature
-				if len(decoded) > 4 && string(decoded[0:4]) == "%PDF" {
-					b.Log("Detected PDF content, converting Base64 to Raw bytes...")
-					dataToPrint = decoded
-				} else {
-					// 2. Try to decode as Image
-					img, format, errImg := image.Decode(bytes.NewReader(decoded))
-					if errImg == nil {
-						b.Log(fmt.Sprintf("Detected %s image, converting to ZPL...", format))
-						dataToPrint = imageToZPL(img)
-					} else {
-						// 3. Fallback: Treat decoded bytes as Raw data (maybe user sent Base64 encoded ZPL?)
-						// b.Log("Base64 decoded but not PDF/Image, using decoded bytes as Raw...")
-						dataToPrint = decoded
-					}
-				}
-			} else {
-				// Not Base64, treat string as Raw commands
-				dataToPrint = []byte(req.Content)
-			}
-
-			err = b.printRaw(req.Printer, req.JobName, dataToPrint)
+			err = b.printPDF(req.Printer, req.JobName, decoded)
 			if err != nil {
 				lastErr = err
 				b.Log(fmt.Sprintf("Print error (copy %d): %v", i+1, err))
-				// Continue trying other copies? Or stop? Let's stop on error to avoid waste.
 				break
 			} else {
 				successCount++
@@ -366,58 +332,33 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		if successCount == req.Copies {
 			b.Log("Print success")
 			resp := Response{Status: "success", Message: "Printed successfully"}
-			if jsonBytes, err := json.Marshal(resp); err == nil {
-				b.Log(fmt.Sprintf("Sent WS message: %s", string(jsonBytes)))
-			}
 			c.WriteJSON(resp)
 		} else {
 			msg := fmt.Sprintf("Printed %d/%d copies. Error: %v", successCount, req.Copies, lastErr)
 			b.Log(msg)
-			resp := Response{Status: "error", Message: msg}
-			if jsonBytes, err := json.Marshal(resp); err == nil {
-				b.Log(fmt.Sprintf("Sent WS message: %s", string(jsonBytes)))
-			}
-			c.WriteJSON(resp)
+			c.WriteJSON(Response{Status: "error", Message: msg})
 		}
 	}
 }
 
-func (b *Bridge) printRaw(printerName string, jobName string, data []byte) error {
-	// Log the data being sent to the printer
-	// Using %q to safely escape binary data while keeping text readable
-	b.Log(fmt.Sprintf("Forwarding to printer '%s' (Job: %s): %q", printerName, jobName, data))
-
-	p, err := printer.Open(printerName)
+func (b *Bridge) printPDF(printerName string, jobName string, pdfData []byte) error {
+	// 1. Write to temp file
+	tmpFile, err := ioutil.TempFile("", "print-dot-*.pdf")
 	if err != nil {
-		return err
+		return fmt.Errorf("create temp file failed: %v", err)
 	}
-	defer p.Close()
+	defer os.Remove(tmpFile.Name()) // Clean up on exit
 
-	if jobName == "" {
-		jobName = "Raw Print Job"
+	if _, err := tmpFile.Write(pdfData); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("write temp file failed: %v", err)
 	}
+	tmpFile.Close()
+	absPath, _ := filepath.Abs(tmpFile.Name())
 
-	err = p.StartDocument(jobName, "RAW")
-	if err != nil {
-		return err
-	}
-	defer p.EndDocument()
+	b.Log(fmt.Sprintf("Printing PDF file: %s to %s", absPath, printerName))
 
-	err = p.StartPage()
-	if err != nil {
-		return err
-	}
-	defer p.EndPage()
-
-	n, err := p.Write(data)
-	if err != nil {
-		return err
-	}
-
-	// Log the result returned by the printer (write success)
-	b.Log(fmt.Sprintf("Printer returned: Success (%d bytes written)", n))
-
-	return nil
+	return b.printPDFPlatform(printerName, absPath)
 }
 
 func (b *Bridge) StartLogServer() error {

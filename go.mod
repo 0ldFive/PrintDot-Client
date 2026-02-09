@@ -3,7 +3,6 @@ module print-dot-client
 go 1.24.0
 
 require (
-	github.com/alexbrainman/printer v0.0.0-20200912035444-f40f26f0bdeb
 	github.com/cloudfoundry/jibber_jabber v0.0.0-20151120183258-bcc4c8345a21
 	github.com/energye/systray v1.0.3
 	github.com/gorilla/websocket v1.5.3

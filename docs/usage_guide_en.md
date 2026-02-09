@@ -8,7 +8,8 @@ Key Features:
 - Automatically retrieves the list of installed printers in the operating system.
 - Starts a WebSocket service to listen for print requests (default port 1122).
 - Supports custom service ports and security keys (Secret Key).
-- Supports advanced print parameters: copies, interval between copies, orientation, DPI, etc.
+- **PDF Printing Only**: Accepts Base64 encoded PDF content and invokes system commands (Windows `PrintTo` / Unix `lp`) for printing.
+- Supports advanced print parameters: copies, interval between copies.
 - Provides a visual management interface to view logs and printer status in real-time.
 - **Independent Log Window**: Supports viewing real-time system logs in a separate window.
 
@@ -72,27 +73,27 @@ The JSON data packet structure sent by the client is as follows:
 ```json
 {
   "printer": "Microsoft Print to PDF",  // [Required] Target printer name
-  "content": "^XA^FO50,50^FDHello^FS^XZ", // [Required] Print content (ZPL/EPL/Raw)
-  "jobName": "My Print Job 001",        // [Optional] Job name
+  "content": "data:application/pdf;base64,JVBERi...", // [Required] Base64 encoded PDF content (Supports Data URI prefix or raw Base64)
+  "jobName": "My Print Job 001",        // [Optional] Job name (for logging only)
   "key": "123456",                      // [Optional] Auth key (can be omitted if verified during connection)
   "copies": 2,                          // [Optional] Number of copies, default 1
-  "jobInterval": 1000,                  // [Optional] Delay between copies (ms), used for manual interval
-  "orientation": "landscape",           // [Optional] Print orientation (portrait/landscape) *
-  "dpi": 203                            // [Optional] Print DPI *
+  "jobInterval": 1000                   // [Optional] Delay between copies (ms), used for manual interval
 }
 ```
 
-> **Note (\*)**: `orientation` and `dpi` parameters only take effect if the driver supports them or in specific modes. For **RAW (Instruction)** print mode (such as ZPL/EPL), it is recommended to set the orientation and density directly in the `content` instruction, as RAW mode usually bypasses these settings in the Windows driver.
+> **Note**: 
+> 1. The `content` field must be a **Base64 encoded string of a PDF file**.
+>    - Supports standard Data URI format: `data:application/pdf;base64,JVBERi...`
+>    - Also supports raw Base64 string: `JVBERi...`
+>    - The server automatically strips the `data:` prefix (if present) and validates that the decoded content starts with `%PDF`.
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `printer` | String | Target printer name. |
-| `content` | String | Raw print data (ZPL, TSPL, ESC/POS, etc.). |
+| `content` | String | **Base64 encoded PDF content**. |
 | `jobName` | String | Print job name. |
-| `copies` | Integer | **Number of copies**. The server sends the task the specified number of times. |
-| `jobInterval` | Integer | **Interval (ms)**. Wait time between each copy, used to prevent buffer overflow or manual tear-off interval. |
-| `orientation`| String | `portrait` or `landscape`. (RAW mode recommended using instructions) |
-| `dpi` | Integer | Target print DPI. (RAW mode recommended using instructions) |
+| `copies` | Integer | **Number of copies**. The server invokes the system print command repeatedly. |
+| `jobInterval` | Integer | **Interval (ms)**. Wait time between each copy. |
 
 #### 3.2.4 Server Response (Server -> Client)
 The server returns the result of each print:
@@ -105,9 +106,23 @@ The server returns the result of each print:
 }
 ```
 
+**Failure Response:**
+```json
+{
+  "status": "error",
+  "message": "Content must be a PDF file"
+}
+```
+
 ### 3.3 Client Code Example
 
 ```javascript
+const socket = new WebSocket('ws://localhost:1122/ws?key=123456');
+
+socket.onopen = () => {
+    console.log('Connected');
+};
+
 socket.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'printer_list') {
@@ -119,8 +134,11 @@ socket.onmessage = (event) => {
         // Send print job
         socket.send(JSON.stringify({
             printer: msg.data[0],
-            content: "^XA^FO50,50^FDHello^FS^XZ"
+            content: "JVBERi0xLjQKJ...", // Base64 PDF Data
+            copies: 1
         }));
+    } else {
+        console.log('Response:', msg);
     }
 };
 ```
