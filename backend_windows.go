@@ -12,11 +12,73 @@ import (
 )
 
 var (
-	shell32           = syscall.NewLazyDLL("shell32.dll")
-	procShellExecuteW = shell32.NewProc("ShellExecuteW")
+	shell32                 = syscall.NewLazyDLL("shell32.dll")
+	kernel32                = syscall.NewLazyDLL("kernel32.dll")
+	procShellExecuteW       = shell32.NewProc("ShellExecuteW")
+	procMultiByteToWideChar = kernel32.NewProc("MultiByteToWideChar")
 )
 
 const swHide = 0
+
+// ansiToUtf8 converts ANSI (CP_ACP) bytes to UTF-8 string
+func ansiToUtf8(b []byte) (string, error) {
+	if len(b) == 0 {
+		return "", nil
+	}
+
+	// CP_ACP = 0
+	// 1. Get required length
+	ret, _, _ := procMultiByteToWideChar.Call(
+		0, // CP_ACP
+		0,
+		uintptr(unsafe.Pointer(&b[0])),
+		uintptr(len(b)),
+		0,
+		0,
+	)
+	if ret == 0 {
+		return "", fmt.Errorf("MultiByteToWideChar failed")
+	}
+
+	// 2. Allocate buffer
+	utf16buf := make([]uint16, ret)
+
+	// 3. Convert
+	ret, _, _ = procMultiByteToWideChar.Call(
+		0,
+		0,
+		uintptr(unsafe.Pointer(&b[0])),
+		uintptr(len(b)),
+		uintptr(unsafe.Pointer(&utf16buf[0])),
+		ret,
+	)
+	if ret == 0 {
+		return "", fmt.Errorf("MultiByteToWideChar failed")
+	}
+
+	return syscall.UTF16ToString(utf16buf), nil
+}
+
+// decodeCmdOutput handles WMIC encoding quirks (UTF-16LE BOM or ANSI)
+func decodeCmdOutput(output []byte) (string, error) {
+	if len(output) >= 2 && output[0] == 0xFF && output[1] == 0xFE {
+		// UTF-16LE BOM detected
+		// Skip BOM
+		raw16 := output[2:]
+		// Make sure even number of bytes
+		if len(raw16)%2 != 0 {
+			raw16 = append(raw16, 0)
+		}
+		u16s := make([]uint16, len(raw16)/2)
+		for i := 0; i < len(u16s); i++ {
+			u16s[i] = uint16(raw16[i*2]) | uint16(raw16[i*2+1])<<8
+		}
+		return syscall.UTF16ToString(u16s), nil
+	}
+
+	// Assume ANSI (e.g. GBK on Chinese Windows)
+	return ansiToUtf8(output)
+}
 
 func shellExecute(hwnd uintptr, operation, file, parameters, directory string, showCmd int) error {
 	op, _ := syscall.UTF16PtrFromString(operation)
@@ -51,8 +113,14 @@ func (b *Bridge) getPrintersPlatform() ([]string, error) {
 		return nil, err
 	}
 
+	decodedStr, err := decodeCmdOutput(output)
+	if err != nil {
+		// Fallback
+		decodedStr = string(output)
+	}
+
 	// WMIC output can be messy with CR/LF
-	lines := strings.Split(string(output), "\n")
+	lines := strings.Split(decodedStr, "\n")
 	var printers []string
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -74,7 +142,12 @@ func (b *Bridge) printPDFPlatform(printerName, filePath string) error {
 		return fmt.Errorf("get default printer failed: %v", err)
 	}
 
-	lines := strings.Split(string(out), "\n")
+	decodedStr, err := decodeCmdOutput(out)
+	if err != nil {
+		decodedStr = string(out)
+	}
+
+	lines := strings.Split(decodedStr, "\n")
 	var defaultPrinter string
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)

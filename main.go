@@ -54,6 +54,11 @@ func main() {
 		}
 	}
 
+	// go-webview2 (Wails backend) respects this environment variable.
+	// We enable remote debugging to allow CDP (Chrome DevTools Protocol) connections.
+	// This enables "Silent Printing" by using Page.printToPDF via WebSocket.
+	os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--remote-debugging-port=9222")
+
 	// Create an instance of the app structure
 	app := NewApp(mode, logPort)
 
