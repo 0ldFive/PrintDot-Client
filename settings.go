@@ -32,8 +32,11 @@ type SettingsManager struct {
 }
 
 func NewSettingsManager() *SettingsManager {
-	configDir, _ := os.UserConfigDir()
-	appConfigDir := filepath.Join(configDir, "print-dot-client")
+	appConfigDir, err := dataDirPath()
+	if err != nil {
+		configDir, _ := os.UserConfigDir()
+		appConfigDir = filepath.Join(configDir, "PrintDot")
+	}
 	os.MkdirAll(appConfigDir, 0755)
 
 	// Detect language

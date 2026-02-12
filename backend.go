@@ -689,26 +689,34 @@ func (b *Bridge) logFilePath() (string, error) {
 }
 
 func (b *Bridge) logDirPath() (string, error) {
+	baseDir, err := dataDirPath()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(baseDir, "logs"), nil
+}
+
+func dataDirPath() (string, error) {
 	if programData := strings.TrimSpace(os.Getenv("ProgramData")); programData != "" {
-		return filepath.Join(programData, "PrintDot", "logs"), nil
+		return filepath.Join(programData, "PrintDot"), nil
 	}
 	if runtime.GOOS == "darwin" {
 		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, "Library", "Application Support", "PrintDot", "logs"), nil
+			return filepath.Join(home, "Library", "Application Support", "PrintDot"), nil
 		}
 	}
 	if runtime.GOOS == "linux" {
 		if dataHome := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); dataHome != "" {
-			return filepath.Join(dataHome, "PrintDot", "logs"), nil
+			return filepath.Join(dataHome, "PrintDot"), nil
 		}
 		if home, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(home, ".local", "share", "PrintDot", "logs"), nil
+			return filepath.Join(home, ".local", "share", "PrintDot"), nil
 		}
 	}
 	if wd, err := os.Getwd(); err == nil {
-		return filepath.Join(wd, "logs"), nil
+		return filepath.Join(wd, "PrintDot"), nil
 	}
-	return "", fmt.Errorf("failed to resolve log directory")
+	return "", fmt.Errorf("failed to resolve data directory")
 }
 
 func (b *Bridge) appendLogLine(line string) error {

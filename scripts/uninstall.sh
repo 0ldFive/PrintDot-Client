@@ -1,32 +1,32 @@
 #!/bin/sh
 set -e
 
-remove_logs() {
+remove_data_linux() {
   if [ -n "${XDG_DATA_HOME:-}" ]; then
-    LOG_DIR="$XDG_DATA_HOME/PrintDot/logs"
+    BASE_DIR="$XDG_DATA_HOME/PrintDot"
   elif [ -n "${HOME:-}" ]; then
-    LOG_DIR="$HOME/.local/share/PrintDot/logs"
+    BASE_DIR="$HOME/.local/share/PrintDot"
   else
-    LOG_DIR=""
+    BASE_DIR=""
   fi
 
-  if [ -n "$LOG_DIR" ]; then
-    rm -rf "$LOG_DIR"
+  if [ -n "$BASE_DIR" ]; then
+    rm -rf "$BASE_DIR"
   fi
 }
 
-remove_logs_macos() {
+remove_data_macos() {
   if [ -n "${HOME:-}" ]; then
-    rm -rf "$HOME/Library/Application Support/PrintDot/logs"
+    rm -rf "$HOME/Library/Application Support/PrintDot"
   fi
 }
 
 case "$(uname -s)" in
   Darwin)
-    remove_logs_macos
+    remove_data_macos
     ;;
   Linux)
-    remove_logs
+    remove_data_linux
     ;;
   *)
     echo "Unsupported OS: $(uname -s)"
@@ -34,4 +34,4 @@ case "$(uname -s)" in
     ;;
 esac
 
-echo "PrintDot logs removed."
+echo "PrintDot data removed."
