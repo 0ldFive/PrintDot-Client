@@ -167,15 +167,30 @@ var upgrader = websocket.Upgrader{
 }
 
 type PrintRequest struct {
-	Printer     string `json:"printer"`
-	Content     string `json:"content"` // Base64 encoded PDF
-	Key         string `json:"key"`
-	JobName     string `json:"jobName"`
-	Copies      int    `json:"copies"`      // Number of copies
-	JobInterval int    `json:"jobInterval"` // Delay between copies in ms
+	Printer       string `json:"printer"`
+	Content       string `json:"content"` // Base64 encoded PDF
+	Key           string `json:"key"`
+	JobName       string `json:"jobName"`
+	Copies        int    `json:"copies"`      // Number of copies
+	JobInterval   int    `json:"jobInterval"` // Delay between copies in ms
+	PageRange     string `json:"pageRange"`
+	Duplex        string `json:"duplex"`
+	ColorMode     string `json:"colorMode"`
+	Paper         string `json:"paper"`
+	Scale         string `json:"scale"`
+	PrintSettings string `json:"printSettings"`
 	// Legacy fields ignored but kept for compatibility
 	Orientation string `json:"orientation"`
 	DPI         int    `json:"dpi"`
+}
+
+type PrintOptions struct {
+	PageRange     string
+	Duplex        string
+	ColorMode     string
+	Paper         string
+	Scale         string
+	PrintSettings string
 }
 
 type Response struct {
@@ -311,6 +326,15 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		options := PrintOptions{
+			PageRange:     strings.TrimSpace(req.PageRange),
+			Duplex:        strings.TrimSpace(req.Duplex),
+			ColorMode:     strings.TrimSpace(req.ColorMode),
+			Paper:         strings.TrimSpace(req.Paper),
+			Scale:         strings.TrimSpace(req.Scale),
+			PrintSettings: strings.TrimSpace(req.PrintSettings),
+		}
+
 		successCount := 0
 		var lastErr error
 
@@ -319,7 +343,7 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				time.Sleep(time.Duration(req.JobInterval) * time.Millisecond)
 			}
 
-			err = b.printPDF(req.Printer, req.JobName, decoded)
+			err = b.printPDF(req.Printer, req.JobName, decoded, options)
 			if err != nil {
 				lastErr = err
 				b.Log(fmt.Sprintf("Print error (copy %d): %v", i+1, err))
@@ -341,7 +365,7 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (b *Bridge) printPDF(printerName string, jobName string, pdfData []byte) error {
+func (b *Bridge) printPDF(printerName string, jobName string, pdfData []byte, options PrintOptions) error {
 	// 1. Write to temp file
 	tmpFile, err := ioutil.TempFile("", "print-dot-*.pdf")
 	if err != nil {
@@ -356,9 +380,13 @@ func (b *Bridge) printPDF(printerName string, jobName string, pdfData []byte) er
 	tmpFile.Close()
 	absPath, _ := filepath.Abs(tmpFile.Name())
 
-	b.Log(fmt.Sprintf("Printing PDF file: %s to %s", absPath, printerName))
+	if jobName != "" {
+		b.Log(fmt.Sprintf("Printing job '%s': %s to %s", jobName, absPath, printerName))
+	} else {
+		b.Log(fmt.Sprintf("Printing PDF file: %s to %s", absPath, printerName))
+	}
 
-	return b.printPDFPlatform(printerName, absPath)
+	return b.printPDFPlatform(printerName, absPath, options)
 }
 
 func (b *Bridge) StartLogServer() error {

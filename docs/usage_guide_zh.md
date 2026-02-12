@@ -8,8 +8,8 @@
 - 自动获取操作系统已安装的打印机列表。
 - 启动 WebSocket 服务监听打印请求（默认端口 1122）。
 - 支持自定义服务端口和安全密钥（Secret Key）。
-- **仅支持 PDF 打印**：接收 Base64 编码的 PDF 文件内容，并调用系统命令（Windows `PrintTo` / Unix `lp`）进行打印。
-- 支持高级打印参数：打印份数、份数间隔。
+- **仅支持 PDF 打印**：接收 Base64 编码的 PDF 文件内容，并调用系统命令（Windows 使用 SumatraPDF 无感打印 / Unix `lp`）进行打印。
+- 支持高级打印参数：打印份数、份数间隔，以及更多打印设置。
 - 提供可视化的管理界面，实时查看日志和打印机状态。
 - **独立日志窗口**：支持在浏览器中查看实时系统日志。
 
@@ -25,6 +25,10 @@ wails dev
 ```
 
 **注意**: 程序启动时会自动开启 WebSocket 服务（默认端口 1122）。
+
+**Windows 打印说明**:
+- Windows 端使用 **SumatraPDF** 静默打印 PDF。
+- 请将 `SumatraPDF.exe` 放在程序同目录，或加入系统 `PATH`，或设置环境变量 `SUMATRAPDF_PATH` 指向该文件。
 
 ### 2.2 界面配置
 启动后，界面提供以下配置项：
@@ -81,7 +85,13 @@ wails dev
   "jobName": "My Print Job 001",        // [选填] 任务名称 (仅用于日志记录)
   "key": "123456",                      // [选填] 鉴权密钥 (若连接时已验证可省略)
   "copies": 2,                          // [选填] 打印份数，默认 1
-  "jobInterval": 1000                   // [选填] 份数间延迟(毫秒)，用于手动隔张打印
+  "jobInterval": 1000,                  // [选填] 份数间延迟(毫秒)，用于手动隔张打印
+  "pageRange": "1-3,5",                // [选填] 打印页码范围 (Linux/macOS 支持；Windows 需配合 printSettings)
+  "duplex": "long-edge",               // [选填] 双面: simplex | long-edge | short-edge
+  "colorMode": "mono",                 // [选填] 颜色: color | mono
+  "paper": "A4",                        // [选填] 纸张: A4 | Letter | ...
+  "scale": "fit",                      // [选填] 缩放: fit | shrink | none
+  "printSettings": "fit,duplex"        // [选填] SumatraPDF 原生 -print-settings 字符串 (Windows)
 }
 ```
 
@@ -98,6 +108,12 @@ wails dev
 | `jobName` | String | 打印任务名称。 |
 | `copies` | Integer | **打印份数**。服务端会循环调用系统打印命令指定次数。 |
 | `jobInterval` | Integer | **隔张间隔 (ms)**。每份打印之间的等待时间。 |
+| `pageRange` | String | **页码范围**。例如 `1-3,5`。Linux/macOS 支持；Windows 需配合 `printSettings`。 |
+| `duplex` | String | **双面设置**：`simplex` / `long-edge` / `short-edge`。 |
+| `colorMode` | String | **颜色模式**：`color` / `mono`。 |
+| `paper` | String | **纸张大小**：如 `A4`、`Letter`。 |
+| `scale` | String | **缩放策略**：`fit` / `shrink` / `none`。 |
+| `printSettings` | String | **SumatraPDF 原生设置**（Windows）。会直接传给 `-print-settings`。 |
 
 #### 3.2.4 服务端响应 (Server -> Client)
 服务端会返回每次打印的结果：

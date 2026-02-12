@@ -27,9 +27,39 @@ func (b *Bridge) getPrintersPlatform() ([]string, error) {
 	return printers, nil
 }
 
-func (b *Bridge) printPDFPlatform(printerName, filePath string) error {
-	// lp -d printer filename
-	cmd := exec.Command("lp", "-d", printerName, filePath)
+func (b *Bridge) printPDFPlatform(printerName, filePath string, options PrintOptions) error {
+	args := []string{"-d", printerName}
+
+	if options.PageRange != "" {
+		args = append(args, "-P", options.PageRange)
+	}
+
+	switch strings.ToLower(strings.TrimSpace(options.Duplex)) {
+	case "long-edge", "long", "duplex":
+		args = append(args, "-o", "sides=two-sided-long-edge")
+	case "short-edge", "short", "duplexshort":
+		args = append(args, "-o", "sides=two-sided-short-edge")
+	case "simplex", "one-sided":
+		args = append(args, "-o", "sides=one-sided")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(options.ColorMode)) {
+	case "mono", "monochrome", "grayscale", "gray":
+		args = append(args, "-o", "ColorModel=Gray")
+	}
+
+	if options.Paper != "" {
+		args = append(args, "-o", fmt.Sprintf("media=%s", options.Paper))
+	}
+
+	switch strings.ToLower(strings.TrimSpace(options.Scale)) {
+	case "fit":
+		args = append(args, "-o", "fit-to-page")
+	}
+
+	args = append(args, filePath)
+
+	cmd := exec.Command("lp", args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("lp error: %v, output: %s", err, string(out))
 	}

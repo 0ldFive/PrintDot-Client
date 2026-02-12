@@ -4,21 +4,18 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 	"unsafe"
 )
 
 var (
-	shell32                 = syscall.NewLazyDLL("shell32.dll")
 	kernel32                = syscall.NewLazyDLL("kernel32.dll")
-	procShellExecuteW       = shell32.NewProc("ShellExecuteW")
 	procMultiByteToWideChar = kernel32.NewProc("MultiByteToWideChar")
 )
-
-const swHide = 0
 
 // ansiToUtf8 converts ANSI (CP_ACP) bytes to UTF-8 string
 func ansiToUtf8(b []byte) (string, error) {
@@ -80,28 +77,6 @@ func decodeCmdOutput(output []byte) (string, error) {
 	return ansiToUtf8(output)
 }
 
-func shellExecute(hwnd uintptr, operation, file, parameters, directory string, showCmd int) error {
-	op, _ := syscall.UTF16PtrFromString(operation)
-	f, _ := syscall.UTF16PtrFromString(file)
-	p, _ := syscall.UTF16PtrFromString(parameters)
-	d, _ := syscall.UTF16PtrFromString(directory)
-
-	ret, _, _ := procShellExecuteW.Call(
-		hwnd,
-		uintptr(unsafe.Pointer(op)),
-		uintptr(unsafe.Pointer(f)),
-		uintptr(unsafe.Pointer(p)),
-		uintptr(unsafe.Pointer(d)),
-		uintptr(showCmd),
-	)
-
-	// ShellExecute returns a value greater than 32 if successful
-	if ret <= 32 {
-		return fmt.Errorf("ShellExecute failed with code %d", ret)
-	}
-	return nil
-}
-
 func (b *Bridge) getPrintersPlatform() ([]string, error) {
 	// Use WMIC to get printer names
 	// wmic printer get name
@@ -132,84 +107,93 @@ func (b *Bridge) getPrintersPlatform() ([]string, error) {
 	return printers, nil
 }
 
-func (b *Bridge) printPDFPlatform(printerName, filePath string) error {
-	// 1. Get current default printer
-	// wmic printer where default='true' get name
-	cmd := exec.Command("wmic", "printer", "where", "default='true'", "get", "name")
+func (b *Bridge) printPDFPlatform(printerName, filePath string, options PrintOptions) error {
+	sumatraPath, err := findSumatraPDF()
+	if err != nil {
+		return err
+	}
+
+	settings := buildSumatraPrintSettings(options)
+	if options.PageRange != "" && options.PrintSettings == "" {
+		b.Log("PageRange is not applied for SumatraPDF unless printSettings is provided")
+	}
+
+	args := []string{"-print-to", printerName}
+	if settings != "" {
+		args = append(args, "-print-settings", settings)
+	}
+	args = append(args, filePath)
+
+	cmd := exec.Command(sumatraPath, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	out, err := cmd.Output()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("get default printer failed: %v", err)
+		return fmt.Errorf("sumatra print failed: %v, output: %s", err, strings.TrimSpace(string(output)))
 	}
 
-	decodedStr, err := decodeCmdOutput(out)
-	if err != nil {
-		decodedStr = string(out)
-	}
+	return nil
+}
 
-	lines := strings.Split(decodedStr, "\n")
-	var defaultPrinter string
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" && trimmed != "Name" {
-			defaultPrinter = trimmed
-			break
+func findSumatraPDF() (string, error) {
+	if envPath := strings.TrimSpace(os.Getenv("SUMATRAPDF_PATH")); envPath != "" {
+		if fileExists(envPath) {
+			return envPath, nil
 		}
 	}
 
-	// 2. If target is different, set it as default
-	needRestore := false
-	if defaultPrinter != printerName {
-		b.Log(fmt.Sprintf("Switching default printer from '%s' to '%s' temporarily", defaultPrinter, printerName))
-		// RUNDLL32 PRINTUI.DLL,PrintUIEntry /y /n "Printer Name"
-		cmd := exec.Command("rundll32", "printui.dll,PrintUIEntry", "/y", "/n", printerName)
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("set default printer failed: %v", err)
-		}
-		needRestore = true
-	}
-
-	// 3. Print using ShellExecute
-	// Strategy:
-	// 1. Try "printto" verb first (specific printer).
-	// 2. If "printto" fails with SE_ERR_NOASSOC (31), fallback to "print" verb (default printer).
-	//    Since we already switched the default printer, "print" should work and target the correct printer.
-
-	// Try printto with printer name as parameter
-	// Some readers expect the printer name in quotes
-	printToParams := fmt.Sprintf("\"%s\"", printerName)
-	err = shellExecute(0, "printto", filePath, printToParams, "", swHide)
-
-	if err != nil && strings.Contains(err.Error(), "code 31") {
-		b.Log("verb 'printto' not supported (code 31), falling back to 'print' verb...")
-		// Fallback to "print" which uses default printer (which we just set)
-		err = shellExecute(0, "print", filePath, "", "", swHide)
-	}
-
-	if err != nil {
-		// Enhance error message if it's still 31
-		if strings.Contains(err.Error(), "code 31") {
-			err = fmt.Errorf("printing failed: No PDF reader installed or associated with 'print'/'printto' verbs. Please install Adobe Reader, Foxit Reader, or similar. (System error: %v)", err)
+	if exe, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(exe), "SumatraPDF.exe")
+		if fileExists(candidate) {
+			return candidate, nil
 		}
 	}
 
-	// 4. Restore default if needed
-	if needRestore {
-		// Wait for spooling - critical for avoiding race conditions
-		time.Sleep(3 * time.Second)
-
-		cmd := exec.Command("rundll32", "printui.dll,PrintUIEntry", "/y", "/n", defaultPrinter)
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-		if rErr := cmd.Run(); rErr != nil {
-			b.Log(fmt.Sprintf("Warning: Failed to restore default printer: %v", rErr))
-		} else {
-			b.Log("Restored default printer")
-		}
-	} else {
-		// Even if we didn't switch, give it a moment to ensure command execution
-		time.Sleep(1 * time.Second)
+	if path, err := exec.LookPath("SumatraPDF.exe"); err == nil {
+		return path, nil
+	}
+	if path, err := exec.LookPath("SumatraPDF"); err == nil {
+		return path, nil
 	}
 
-	return err
+	return "", fmt.Errorf("SumatraPDF.exe not found. Place it next to the app, add it to PATH, or set SUMATRAPDF_PATH")
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+func buildSumatraPrintSettings(options PrintOptions) string {
+	if options.PrintSettings != "" {
+		return options.PrintSettings
+	}
+
+	var settings []string
+
+	switch strings.ToLower(strings.TrimSpace(options.Scale)) {
+	case "fit":
+		settings = append(settings, "fit")
+	case "shrink":
+		settings = append(settings, "shrink")
+	case "none", "actual":
+		settings = append(settings, "none")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(options.Duplex)) {
+	case "long-edge", "long", "duplex", "duplexlong":
+		settings = append(settings, "duplex")
+	case "short-edge", "short", "duplexshort":
+		settings = append(settings, "duplexshort")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(options.ColorMode)) {
+	case "mono", "monochrome", "grayscale", "gray":
+		settings = append(settings, "mono")
+	}
+
+	if options.Paper != "" {
+		settings = append(settings, fmt.Sprintf("paper=%s", options.Paper))
+	}
+
+	return strings.Join(settings, ",")
 }

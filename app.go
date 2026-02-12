@@ -146,21 +146,6 @@ func (a *App) GetPrinters() ([]string, error) {
 }
 
 // PrintCurrentView uses the CDP hack to silent print the current WebView content
-func (a *App) PrintCurrentView(printerName string) error {
-	a.bridge.Log(fmt.Sprintf("Starting silent print for printer: %s", printerName))
-	
-	pdfData, err := GeneratePDFFromWebView()
-	if err != nil {
-		a.bridge.Log(fmt.Sprintf("CDP PDF generation failed: %v", err))
-		return err
-	}
-	
-	a.bridge.Log("PDF generated successfully via CDP, sending to printer...")
-	
-	// Reuse existing printPDF logic (which handles temp files and system commands)
-	return a.bridge.printPDF(printerName, "PrintDot_WebView_Print", pdfData)
-}
-
 func (a *App) StartServer(port, key string) error {
 	return a.bridge.StartServer(port, key)
 }

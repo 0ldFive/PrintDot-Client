@@ -2,3 +2,11 @@ build/bin
 node_modules
 frontend/dist
 
+# Build-time artifacts
+build/windows/installer/resources/SumatraPDF.exe
+build/windows/installer/resources/*.zip
+build/windows/installer/resources/sumatra_tmp/
+build/windows/installer/tmp/
+build/windows/installer/wails_tools.nsh
+frontend/package.json.md5
+

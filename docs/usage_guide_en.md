@@ -8,8 +8,8 @@ Key Features:
 - Automatically retrieves the list of installed printers in the operating system.
 - Starts a WebSocket service to listen for print requests (default port 1122).
 - Supports custom service ports and security keys (Secret Key).
-- **PDF Printing Only**: Accepts Base64 encoded PDF content and invokes system commands (Windows `PrintTo` / Unix `lp`) for printing.
-- Supports advanced print parameters: copies, interval between copies.
+- **PDF Printing Only**: Accepts Base64 encoded PDF content and invokes system commands (Windows uses SumatraPDF silent printing / Unix `lp`).
+- Supports advanced print parameters: copies, interval between copies, and more print settings.
 - Provides a visual management interface to view logs and printer status in real-time.
 - **Independent Log Window**: Supports viewing real-time system logs in a separate window.
 
@@ -21,6 +21,10 @@ Key Features:
 You can run the compiled executable file (e.g., `print-dot-client.exe`) directly.
 
 **Note**: The program automatically starts the WebSocket service (default port 1122) upon startup.
+
+**Windows printing note**:
+- Windows uses **SumatraPDF** for silent PDF printing.
+- Place `SumatraPDF.exe` next to the app, add it to `PATH`, or set the `SUMATRAPDF_PATH` environment variable.
 
 ### 2.2 Interface Configuration
 After startup, the interface provides the following configuration options:
@@ -77,7 +81,13 @@ The JSON data packet structure sent by the client is as follows:
   "jobName": "My Print Job 001",        // [Optional] Job name (for logging only)
   "key": "123456",                      // [Optional] Auth key (can be omitted if verified during connection)
   "copies": 2,                          // [Optional] Number of copies, default 1
-  "jobInterval": 1000                   // [Optional] Delay between copies (ms), used for manual interval
+  "jobInterval": 1000,                  // [Optional] Delay between copies (ms), used for manual interval
+  "pageRange": "1-3,5",                // [Optional] Page range (Linux/macOS; Windows needs printSettings)
+  "duplex": "long-edge",               // [Optional] Duplex: simplex | long-edge | short-edge
+  "colorMode": "mono",                 // [Optional] Color: color | mono
+  "paper": "A4",                        // [Optional] Paper size: A4 | Letter | ...
+  "scale": "fit",                      // [Optional] Scale: fit | shrink | none
+  "printSettings": "fit,duplex"        // [Optional] SumatraPDF native -print-settings string (Windows)
 }
 ```
 
@@ -94,6 +104,12 @@ The JSON data packet structure sent by the client is as follows:
 | `jobName` | String | Print job name. |
 | `copies` | Integer | **Number of copies**. The server invokes the system print command repeatedly. |
 | `jobInterval` | Integer | **Interval (ms)**. Wait time between each copy. |
+| `pageRange` | String | **Page range** like `1-3,5`. Linux/macOS supported; Windows needs `printSettings`. |
+| `duplex` | String | **Duplex**: `simplex` / `long-edge` / `short-edge`. |
+| `colorMode` | String | **Color mode**: `color` / `mono`. |
+| `paper` | String | **Paper size**: e.g. `A4`, `Letter`. |
+| `scale` | String | **Scaling**: `fit` / `shrink` / `none`. |
+| `printSettings` | String | **SumatraPDF native settings** (Windows). Passed to `-print-settings`. |
 
 #### 3.2.4 Server Response (Server -> Client)
 The server returns the result of each print:

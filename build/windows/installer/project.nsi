@@ -88,6 +88,8 @@ Section
 
     !insertmacro wails.files
 
+    File "resources\SumatraPDF.exe"
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
@@ -101,6 +103,8 @@ Section "uninstall"
     !insertmacro wails.setShellContext
 
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
+
+    Delete "$INSTDIR\SumatraPDF.exe"
 
     RMDir /r $INSTDIR
 
