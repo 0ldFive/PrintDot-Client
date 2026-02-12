@@ -211,12 +211,24 @@ socket.onmessage = (event) => {
     if (msg.type === 'printer_list') {
         console.log('可用打印机:', msg.data);
 
+        const targetPrinter = msg.data[0];
+
         // 示例：主动刷新打印机列表
         // socket.send(JSON.stringify({ type: 'get_printers' }));
+
+        // 获取打印机能力（纸张/单双面/彩色等）
+        socket.send(JSON.stringify({
+          type: 'get_printer_caps',
+          printer: targetPrinter
+        }));
+    } else if (msg.type === 'printer_caps') {
+        const caps = msg.data || {};
+        const sizes = caps.printerPaperNames || caps.paperSizes || [];
+        const paperSize = sizes[0] || 'A4';
         
         // 发送打印任务（按功能分组）
         socket.send(JSON.stringify({
-          printer: msg.data[0],
+          printer: msg.printer,
           content: "JVBERi0xLjQKJ...", // Base64 PDF Data
           job: {
             name: "Test Job",
@@ -238,7 +250,7 @@ socket.onmessage = (event) => {
             mode: "duplex"
           },
           paper: {
-            size: "A4"
+            size: paperSize
           },
           tray: {
             bin: "2"

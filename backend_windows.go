@@ -145,8 +145,13 @@ func (b *Bridge) getPrinterCapabilitiesPlatform(printerName string) (map[string]
 		return nil, fmt.Errorf("get printer capabilities failed: %v", err)
 	}
 
+	decoded, err := decodeCmdOutput(output)
+	if err != nil {
+		decoded = string(output)
+	}
+
 	var caps map[string]interface{}
-	if err := json.Unmarshal(output, &caps); err != nil {
+	if err := json.Unmarshal([]byte(decoded), &caps); err != nil {
 		return nil, fmt.Errorf("parse printer capabilities failed: %v", err)
 	}
 

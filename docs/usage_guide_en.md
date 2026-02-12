@@ -204,13 +204,25 @@ socket.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'printer_list') {
         console.log('Available printers:', msg.data);
+
+        const targetPrinter = msg.data[0];
         
         // Example: Actively refresh printer list
         // socket.send(JSON.stringify({ type: 'get_printers' }));
 
+        // Fetch printer capabilities (paper/duplex/color, etc.)
+        socket.send(JSON.stringify({
+          type: 'get_printer_caps',
+          printer: targetPrinter
+        }));
+    } else if (msg.type === 'printer_caps') {
+        const caps = msg.data || {};
+        const sizes = caps.printerPaperNames || caps.paperSizes || [];
+        const paperSize = sizes[0] || 'A4';
+
         // Send print job (grouped by feature)
         socket.send(JSON.stringify({
-          printer: msg.data[0],
+          printer: msg.printer,
           content: "JVBERi0xLjQKJ...", // Base64 PDF Data
           job: {
             name: "Test Job",
@@ -232,7 +244,7 @@ socket.onmessage = (event) => {
             mode: "duplex"
           },
           paper: {
-            size: "A4"
+            size: paperSize
           },
           tray: {
             bin: "2"
