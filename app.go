@@ -141,7 +141,7 @@ func (a *App) SaveSettings(s AppSettings) error {
 	return a.settings.Save(s)
 }
 
-func (a *App) GetPrinters() ([]string, error) {
+func (a *App) GetPrinters() ([]PrinterInfo, error) {
 	return a.bridge.GetPrinters()
 }
 

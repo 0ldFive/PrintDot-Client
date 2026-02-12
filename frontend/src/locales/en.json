@@ -27,6 +27,7 @@
     "stopServer": "Stop Server",
     "connectionUrl": "Connection URL",
     "availablePrinters": "Available Printers",
+    "defaultPrinter": "Default",
     "refresh": "Refresh",
     "loading": "Loading...",
     "noPrinters": "No printers found.",

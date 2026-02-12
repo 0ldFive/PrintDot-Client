@@ -27,6 +27,7 @@
     "stopServer": "停止服务",
     "connectionUrl": "连接地址",
     "availablePrinters": "可用打印机",
+    "defaultPrinter": "默认",
     "refresh": "刷新",
     "loading": "加载中...",
     "noPrinters": "未找到打印机",

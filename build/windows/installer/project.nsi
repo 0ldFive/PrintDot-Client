@@ -104,6 +104,8 @@ Section "uninstall"
 
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 
+    RMDir /r "$ProgramData\PrintDot\logs"
+
     Delete "$INSTDIR\SumatraPDF.exe"
 
     RMDir /r $INSTDIR

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"runtime"
 
 	"github.com/gorilla/websocket"
 )
@@ -30,8 +32,7 @@ type Bridge struct {
 	log    func(string) // Callback to log to frontend
 
 	// Log related
-	logs      []string
-	logsMu    sync.Mutex
+	logFileMu sync.Mutex
 	logServer *http.Server
 	logPort   int
 
@@ -48,12 +49,13 @@ type Bridge struct {
 }
 
 func NewBridge() *Bridge {
-	return &Bridge{
+	b := &Bridge{
 		port:  "1122",
 		key:   "",
-		logs:  make([]string, 0),
 		conns: make(map[*websocket.Conn]bool),
 	}
+	b.ensureLogDir()
+	return b
 }
 
 func (b *Bridge) SetLogger(logger func(string)) {
@@ -88,25 +90,22 @@ func (b *Bridge) updateClientCount(delta int) {
 }
 
 func (b *Bridge) Log(msg string) {
-	// Store in memory
-	b.logsMu.Lock()
 	timestamp := time.Now().Format("15:04:05")
 	entry := fmt.Sprintf("[%s] %s", timestamp, msg)
-	b.logs = append(b.logs, entry)
-	if len(b.logs) > 200 {
-		b.logs = b.logs[1:]
-	}
-	b.logsMu.Unlock()
-
-	if b.log != nil {
+	if err := b.appendLogLine(entry); err != nil {
+		log.Println(entry)
+	} else if b.log != nil {
 		b.log(msg)
-	} else {
-		log.Println(msg)
 	}
 }
 
-func (b *Bridge) GetPrinters() ([]string, error) {
+func (b *Bridge) GetPrinters() ([]PrinterInfo, error) {
 	return b.getPrintersPlatform()
+}
+
+type PrinterInfo struct {
+	Name      string `json:"name"`
+	IsDefault bool   `json:"isDefault"`
 }
 
 func (b *Bridge) GetPrinterCapabilities(printerName string) (map[string]interface{}, error) {
@@ -280,6 +279,8 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		c.WriteJSON(msg)
 	} else {
 		b.Log(fmt.Sprintf("Failed to get printers on connect: %v", err))
+		errMsg := fmt.Sprintf("Failed to get printer list: %v", err)
+		c.WriteJSON(Response{Status: "error", Message: errMsg})
 	}
 
 	for {
@@ -312,7 +313,7 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				}
 				c.WriteJSON(msg)
 			} else {
-				resp := Response{Status: "error", Message: "Failed to get printer list"}
+				resp := Response{Status: "error", Message: fmt.Sprintf("Failed to get printer list: %v", err)}
 				if jsonBytes, err := json.Marshal(resp); err == nil {
 					b.Log(fmt.Sprintf("Sent WS message: %s", string(jsonBytes)))
 				}
@@ -332,6 +333,7 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 			caps, err := b.GetPrinterCapabilities(printer)
 			if err != nil {
+				b.Log(fmt.Sprintf("Failed to get printer capabilities for '%s': %v", printer, err))
 				resp := Response{Status: "error", Message: err.Error()}
 				c.WriteJSON(resp)
 				continue
@@ -551,6 +553,7 @@ func (b *Bridge) printPDF(printerName string, jobName string, pdfData []byte, op
 }
 
 func (b *Bridge) StartLogServer() error {
+	b.ensureLogDir()
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return err
@@ -570,11 +573,23 @@ func (b *Bridge) StartLogServer() error {
 
 	go func() {
 		if err := b.logServer.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Printf("Log server error: %v", err)
+			b.Log(fmt.Sprintf("Log server error: %v", err))
 		}
 	}()
 
 	return nil
+}
+
+func (b *Bridge) ensureLogDir() {
+	logDir, err := b.logDirPath()
+	if err != nil {
+		return
+	}
+	_ = os.MkdirAll(logDir, 0755)
+	path := filepath.Join(logDir, time.Now().Format("20060102")+".txt")
+	if f, err := os.OpenFile(path, os.O_CREATE, 0644); err == nil {
+		f.Close()
+	}
 }
 
 func (b *Bridge) StopLogServer() error {
@@ -589,16 +604,7 @@ func (b *Bridge) StopLogServer() error {
 }
 
 func (b *Bridge) handleLogs(w http.ResponseWriter, r *http.Request) {
-	b.logsMu.Lock()
-	// Copy logs to avoid holding lock during template execution
-	currentLogs := make([]string, len(b.logs))
-	copy(currentLogs, b.logs)
-	b.logsMu.Unlock()
-
-	// Reverse logs for display (newest top)
-	for i, j := 0, len(currentLogs)-1; i < j; i, j = i+1, j-1 {
-		currentLogs[i], currentLogs[j] = currentLogs[j], currentLogs[i]
-	}
+	currentLogs, _ := b.readLogLines()
 
 	html := `<!DOCTYPE html>
 <html>
@@ -647,11 +653,7 @@ func (b *Bridge) handleLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (b *Bridge) handleLogsJSON(w http.ResponseWriter, r *http.Request) {
-	b.logsMu.Lock()
-	// Copy logs
-	currentLogs := make([]string, len(b.logs))
-	copy(currentLogs, b.logs)
-	b.logsMu.Unlock()
+	currentLogs, _ := b.readLogLines()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*") // Allow child process to fetch
@@ -672,11 +674,115 @@ func (b *Bridge) handleClearLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b.logsMu.Lock()
-	b.logs = []string{}
-	b.logsMu.Unlock()
+	b.clearLogFile()
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (b *Bridge) logFilePath() (string, error) {
+	logDir, err := b.logDirPath()
+	if err != nil {
+		return "", err
+	}
+	fileName := time.Now().Format("20060102") + ".txt"
+	return filepath.Join(logDir, fileName), nil
+}
+
+func (b *Bridge) logDirPath() (string, error) {
+	if programData := strings.TrimSpace(os.Getenv("ProgramData")); programData != "" {
+		return filepath.Join(programData, "PrintDot", "logs"), nil
+	}
+	if runtime.GOOS == "darwin" {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, "Library", "Application Support", "PrintDot", "logs"), nil
+		}
+	}
+	if runtime.GOOS == "linux" {
+		if dataHome := strings.TrimSpace(os.Getenv("XDG_DATA_HOME")); dataHome != "" {
+			return filepath.Join(dataHome, "PrintDot", "logs"), nil
+		}
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, ".local", "share", "PrintDot", "logs"), nil
+		}
+	}
+	if wd, err := os.Getwd(); err == nil {
+		return filepath.Join(wd, "logs"), nil
+	}
+	return "", fmt.Errorf("failed to resolve log directory")
+}
+
+func (b *Bridge) appendLogLine(line string) error {
+	b.ensureLogDir()
+	path, err := b.logFilePath()
+	if err != nil {
+		return err
+	}
+	if !strings.HasSuffix(line, "\n") {
+		line += "\n"
+	}
+
+	b.logFileMu.Lock()
+	defer b.logFileMu.Unlock()
+
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.WriteString(line)
+	return err
+}
+
+func (b *Bridge) readLogLines() ([]string, error) {
+	b.ensureLogDir()
+	path, err := b.logFilePath()
+	if err != nil {
+		return nil, err
+	}
+
+	b.logFileMu.Lock()
+	defer b.logFileMu.Unlock()
+
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []string{}, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+
+	lines := []string{}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		text := strings.TrimSpace(scanner.Text())
+		if text == "" {
+			continue
+		}
+		lines = append(lines, text)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return lines, err
+	}
+
+	// Reverse logs for display (newest top)
+	for i, j := 0, len(lines)-1; i < j; i, j = i+1, j-1 {
+		lines[i], lines[j] = lines[j], lines[i]
+	}
+	return lines, nil
+}
+
+func (b *Bridge) clearLogFile() {
+	path, err := b.logFilePath()
+	if err != nil {
+		return
+	}
+
+	b.logFileMu.Lock()
+	defer b.logFileMu.Unlock()
+	_ = os.Remove(path)
 }
 
 func (b *Bridge) handleReloadRequest(w http.ResponseWriter, r *http.Request) {

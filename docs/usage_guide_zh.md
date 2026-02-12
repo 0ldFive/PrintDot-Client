@@ -62,7 +62,10 @@ wails dev
 ```json
 {
   "type": "printer_list",
-  "data": ["Microsoft Print to PDF", "ZDesigner GK888t", ...]
+  "data": [
+    {"name": "Microsoft Print to PDF", "isDefault": true},
+    {"name": "ZDesigner GK888t", "isDefault": false}
+  ]
 }
 ```
 
@@ -211,7 +214,7 @@ socket.onmessage = (event) => {
     if (msg.type === 'printer_list') {
         console.log('可用打印机:', msg.data);
 
-        const targetPrinter = msg.data[0];
+        const targetPrinter = msg.data.find(p => p.isDefault) || msg.data[0];
 
         // 示例：主动刷新打印机列表
         // socket.send(JSON.stringify({ type: 'get_printers' }));
@@ -219,7 +222,7 @@ socket.onmessage = (event) => {
         // 获取打印机能力（纸张/单双面/彩色等）
         socket.send(JSON.stringify({
           type: 'get_printer_caps',
-          printer: targetPrinter
+          printer: targetPrinter?.name
         }));
     } else if (msg.type === 'printer_caps') {
         const caps = msg.data || {};

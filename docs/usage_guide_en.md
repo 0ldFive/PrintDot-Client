@@ -58,7 +58,10 @@ After the connection is established, the server immediately sends the current pr
 ```json
 {
   "type": "printer_list",
-  "data": ["Microsoft Print to PDF", "ZDesigner GK888t", ...]
+  "data": [
+    {"name": "Microsoft Print to PDF", "isDefault": true},
+    {"name": "ZDesigner GK888t", "isDefault": false}
+  ]
 }
 ```
 
@@ -205,7 +208,7 @@ socket.onmessage = (event) => {
     if (msg.type === 'printer_list') {
         console.log('Available printers:', msg.data);
 
-        const targetPrinter = msg.data[0];
+        const targetPrinter = msg.data.find(p => p.isDefault) || msg.data[0];
         
         // Example: Actively refresh printer list
         // socket.send(JSON.stringify({ type: 'get_printers' }));
@@ -213,7 +216,7 @@ socket.onmessage = (event) => {
         // Fetch printer capabilities (paper/duplex/color, etc.)
         socket.send(JSON.stringify({
           type: 'get_printer_caps',
-          printer: targetPrinter
+          printer: targetPrinter?.name
         }));
     } else if (msg.type === 'printer_caps') {
         const caps = msg.data || {};

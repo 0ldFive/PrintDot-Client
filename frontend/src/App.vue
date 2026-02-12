@@ -27,7 +27,12 @@ const connectionUrl = computed(() => {
 })
 
 const serverStatus = ref("Stopped")
-const printers = ref<string[]>([])
+type PrinterInfo = {
+  name: string
+  isDefault: boolean
+}
+
+const printers = ref<PrinterInfo[]>([])
 const isLoadingPrinters = ref(false)
 
 const refreshPrinters = async () => {
@@ -262,9 +267,12 @@ onUnmounted(() => {
               {{ t('main.noPrinters') }}
             </div>
             <ul v-else class="grid grid-cols-1 gap-0 border border-gray-200 divide-y divide-gray-200">
-              <li v-for="p in printers" :key="p" class="px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors text-sm bg-white">
+              <li v-for="p in printers" :key="p.name" class="px-3 py-2 flex items-center gap-2 hover:bg-gray-50 transition-colors text-sm bg-white">
                 <i-material-symbols-print class="text-lg opacity-70 text-gray-500" />
-                <span class="font-medium truncate text-gray-700" :title="p">{{ p }}</span>
+                <span class="font-medium truncate text-gray-700" :title="p.name">{{ p.name }}</span>
+                <span v-if="p.isDefault" class="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                  {{ t('main.defaultPrinter') }}
+                </span>
               </li>
             </ul>
           </div>

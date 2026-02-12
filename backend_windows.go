@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -78,15 +79,14 @@ func decodeCmdOutput(output []byte) (string, error) {
 	return ansiToUtf8(output)
 }
 
-func (b *Bridge) getPrintersPlatform() ([]string, error) {
-	// Use WMIC to get printer names
-	// wmic printer get name
-	cmd := exec.Command("wmic", "printer", "get", "name")
+func (b *Bridge) getPrintersPlatform() ([]PrinterInfo, error) {
+	// Use WMIC to get printer names and default flags in CSV format
+	cmd := exec.Command("wmic", "printer", "get", "name,default", "/format:csv")
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		return getPrintersViaPowerShell()
 	}
 
 	decodedStr, err := decodeCmdOutput(output)
@@ -95,17 +95,77 @@ func (b *Bridge) getPrintersPlatform() ([]string, error) {
 		decodedStr = string(output)
 	}
 
-	// WMIC output can be messy with CR/LF
-	lines := strings.Split(decodedStr, "\n")
-	var printers []string
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		// Skip header "Name" and empty lines
-		if trimmed != "" && trimmed != "Name" {
-			printers = append(printers, trimmed)
+	reader := csv.NewReader(strings.NewReader(decodedStr))
+	reader.FieldsPerRecord = -1
+	reader.LazyQuotes = true
+	records, err := reader.ReadAll()
+	if err != nil {
+		return getPrintersViaPowerShell()
+	}
+
+	var printers []PrinterInfo
+	for _, record := range records {
+		if len(record) < 3 {
+			continue
 		}
+		if strings.EqualFold(record[1], "Default") && strings.EqualFold(record[2], "Name") {
+			continue
+		}
+		name := strings.TrimSpace(record[len(record)-1])
+		if name == "" {
+			continue
+		}
+		isDefault := strings.EqualFold(strings.TrimSpace(record[1]), "TRUE")
+		printers = append(printers, PrinterInfo{Name: name, IsDefault: isDefault})
+	}
+	if len(printers) == 0 {
+		return getPrintersViaPowerShell()
 	}
 	return printers, nil
+}
+
+func getPrintersViaPowerShell() ([]PrinterInfo, error) {
+	ps := `Get-Printer | Select-Object Name,Default | ConvertTo-Json -Depth 3`
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", ps)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	decoded, err := decodeCmdOutput(output)
+	if err != nil {
+		decoded = string(output)
+	}
+
+	var list []struct {
+		Name    string `json:"Name"`
+		Default bool   `json:"Default"`
+	}
+	if err := json.Unmarshal([]byte(decoded), &list); err == nil {
+		printers := make([]PrinterInfo, 0, len(list))
+		for _, item := range list {
+			name := strings.TrimSpace(item.Name)
+			if name == "" {
+				continue
+			}
+			printers = append(printers, PrinterInfo{Name: name, IsDefault: item.Default})
+		}
+		return printers, nil
+	}
+
+	var single struct {
+		Name    string `json:"Name"`
+		Default bool   `json:"Default"`
+	}
+	if err := json.Unmarshal([]byte(decoded), &single); err != nil {
+		return nil, err
+	}
+	name := strings.TrimSpace(single.Name)
+	if name == "" {
+		return nil, fmt.Errorf("no printers found")
+	}
+	return []PrinterInfo{{Name: name, IsDefault: single.Default}}, nil
 }
 
 func (b *Bridge) getPrinterCapabilitiesPlatform(printerName string) (map[string]interface{}, error) {

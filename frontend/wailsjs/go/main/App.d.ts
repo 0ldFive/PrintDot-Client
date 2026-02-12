@@ -11,7 +11,7 @@ export function GetAppMode():Promise<string>;
 
 export function GetLogPort():Promise<number>;
 
-export function GetPrinters():Promise<Array<string>>;
+export function GetPrinters():Promise<Array<main.PrinterInfo>>;
 
 export function GetSettings():Promise<main.AppSettings>;
 

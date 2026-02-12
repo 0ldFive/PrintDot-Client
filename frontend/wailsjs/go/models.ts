@@ -49,6 +49,20 @@ export namespace main {
 	        this.maximized = source["maximized"];
 	    }
 	}
+	export class PrinterInfo {
+	    name: string;
+	    isDefault: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PrinterInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.isDefault = source["isDefault"];
+	    }
+	}
 
 }
 

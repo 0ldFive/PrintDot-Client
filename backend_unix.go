@@ -8,8 +8,15 @@ import (
 	"strings"
 )
 
-func (b *Bridge) getPrintersPlatform() ([]string, error) {
-	// lpstat -a | cut -d ' ' -f 1
+func (b *Bridge) getPrintersPlatform() ([]PrinterInfo, error) {
+	defaultName := ""
+	if out, err := exec.Command("lpstat", "-d").Output(); err == nil {
+		line := strings.TrimSpace(string(out))
+		if idx := strings.LastIndex(line, ":"); idx >= 0 {
+			defaultName = strings.TrimSpace(line[idx+1:])
+		}
+	}
+
 	cmd := exec.Command("sh", "-c", "lpstat -a | cut -d ' ' -f 1")
 	output, err := cmd.Output()
 	if err != nil {
@@ -17,11 +24,11 @@ func (b *Bridge) getPrintersPlatform() ([]string, error) {
 	}
 
 	lines := strings.Split(string(output), "\n")
-	var printers []string
+	var printers []PrinterInfo
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed != "" {
-			printers = append(printers, trimmed)
+			printers = append(printers, PrinterInfo{Name: trimmed, IsDefault: trimmed == defaultName})
 		}
 	}
 	return printers, nil
