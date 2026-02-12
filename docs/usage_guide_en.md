@@ -110,18 +110,12 @@ The JSON payload is grouped by feature:
 }
 ```
 
-> **Compatibility**:
-> - Legacy fields (`jobName` / `copies` / `jobInterval` / `pageRange` / `duplex` / `colorMode` / `paper` / `scale` / `printSettings`) are still accepted, but grouped fields take precedence.
-> - When `sumatra.settings` is provided, it overrides auto-generated SumatraPDF parameters.
-
 > **Note**: 
 > 1. The `content` field must be a **Base64 encoded string of a PDF file**.
 >    - Supports standard Data URI format: `data:application/pdf;base64,JVBERi...`
 >    - Also supports raw Base64 string: `JVBERi...`
 >    - The server automatically strips the `data:` prefix (if present) and validates that the decoded content starts with `%PDF`.
 
-| Field | Type | Description |
-| :--- | :--- | :--- |
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `printer` | String | Target printer name. |
@@ -135,7 +129,7 @@ The JSON payload is grouped by feature:
 | `layout.orientation` | String | **Orientation**: `portrait` / `landscape`. |
 | `color.mode` | String | **Color mode**: `color` / `monochrome`. |
 | `sides.mode` | String | **Duplex**: `simplex` / `duplex` / `duplexshort` / `duplexlong`. |
-| `paper.size` | String | **Paper size**: e.g. `A4`, `letter`, `legal`. |
+| `paper.size` | String | **Paper size**: e.g. `A4`, `letter`, `legal`. If omitted, we try to auto-detect common sizes from PDF MediaBox. |
 | `tray.bin` | String | **Tray**: number or name. |
 | `sumatra.settings` | String | **SumatraPDF native settings** (Windows), passed to `-print-settings`. |
 

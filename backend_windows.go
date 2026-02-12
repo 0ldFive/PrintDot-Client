@@ -162,7 +162,7 @@ func fileExists(path string) bool {
 
 func buildSumatraPrintSettings(options PrintOptions) string {
 	if options.PrintSettings != "" {
-		return mergeSumatraSettings(options.PrintSettings, options.Orientation)
+		return mergeSumatraSettings(options.PrintSettings, options.Orientation, options.Paper)
 	}
 
 	var settings []string
@@ -225,9 +225,10 @@ func buildSumatraPrintSettings(options PrintOptions) string {
 	return strings.Join(settings, ",")
 }
 
-func mergeSumatraSettings(settings string, orientation string) string {
+func mergeSumatraSettings(settings string, orientation string, paper string) string {
 	parts := strings.Split(settings, ",")
 	result := make([]string, 0, len(parts)+1)
+	seenPaper := false
 
 	for _, part := range parts {
 		trimmed := strings.TrimSpace(part)
@@ -238,12 +239,19 @@ func mergeSumatraSettings(settings string, orientation string) string {
 		if lower == "portrait" || lower == "landscape" {
 			continue
 		}
+		if strings.HasPrefix(lower, "paper=") {
+			seenPaper = true
+		}
 		result = append(result, trimmed)
 	}
 
 	switch strings.ToLower(strings.TrimSpace(orientation)) {
 	case "portrait", "landscape":
 		result = append(result, strings.ToLower(strings.TrimSpace(orientation)))
+	}
+
+	if strings.TrimSpace(paper) != "" && !seenPaper {
+		result = append(result, fmt.Sprintf("paper=%s", paper))
 	}
 
 	return strings.Join(result, ",")

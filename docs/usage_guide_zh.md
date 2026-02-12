@@ -114,18 +114,12 @@ wails dev
 }
 ```
 
-> **兼容说明**:
-> - 旧字段（`jobName` / `copies` / `jobInterval` / `pageRange` / `duplex` / `colorMode` / `paper` / `scale` / `printSettings`）仍可用，但优先使用分组结构。
-> - `sumatra.settings` 存在时，会直接覆盖自动生成的 SumatraPDF 参数。
-
 > **注意**: 
 > 1. `content` 字段必须是 **PDF 文件的 Base64 编码字符串**。
 >    - 支持标准 Data URI 格式：`data:application/pdf;base64,JVBERi...`
 >    - 也支持纯 Base64 字符串：`JVBERi...`
 >    - 服务端会自动去除 `data:` 前缀（如果有）并校验解码后的内容是否以 `%PDF` 开头。
 
-| 字段 | 类型 | 说明 |
-| :--- | :--- | :--- |
 | 字段 | 类型 | 说明 |
 | :--- | :--- | :--- |
 | `printer` | String | 目标打印机名称。 |
@@ -139,7 +133,7 @@ wails dev
 | `layout.orientation` | String | **方向**：`portrait` / `landscape`。 |
 | `color.mode` | String | **颜色模式**：`color` / `monochrome`。 |
 | `sides.mode` | String | **单双面**：`simplex` / `duplex` / `duplexshort` / `duplexlong`。 |
-| `paper.size` | String | **纸张**：如 `A4`、`letter`、`legal`。 |
+| `paper.size` | String | **纸张**：如 `A4`、`letter`、`legal`。未提供时会尝试从 PDF 的 MediaBox 自动识别常见尺寸。 |
 | `tray.bin` | String | **纸盒**：编号或名称。 |
 | `sumatra.settings` | String | **SumatraPDF 原生设置**（Windows），会直接传给 `-print-settings`。 |
 

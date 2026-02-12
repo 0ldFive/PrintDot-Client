@@ -8,10 +8,13 @@ import (
 	"html/template"
 	"io/ioutil"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -197,46 +200,10 @@ type PrintRequest struct {
 	Sumatra struct {
 		Settings string `json:"settings"`
 	} `json:"sumatra"`
-
-	// Legacy fields ignored but kept for compatibility
-	JobName       string `json:"jobName"`
-	Copies        int    `json:"copies"`      // Number of copies
-	JobInterval   int    `json:"jobInterval"` // Delay between copies in ms
-	PageRange     string `json:"pageRange"`
-	Duplex        string `json:"duplex"`
-	ColorMode     string `json:"colorMode"`
-	Scale         string `json:"scale"`
-	PrintSettings string `json:"printSettings"`
-	Orientation   string `json:"orientation"`
-	DPI           int    `json:"dpi"`
 }
 
 type PaperSpec struct {
 	Size string `json:"size"`
-}
-
-func (p *PaperSpec) UnmarshalJSON(data []byte) error {
-	if len(data) == 0 || string(data) == "null" {
-		return nil
-	}
-
-	if data[0] == '"' {
-		var s string
-		if err := json.Unmarshal(data, &s); err != nil {
-			return err
-		}
-		p.Size = s
-		return nil
-	}
-
-	var tmp struct {
-		Size string `json:"size"`
-	}
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-	p.Size = tmp.Size
-	return nil
 }
 
 type PrintOptions struct {
@@ -361,22 +328,13 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		jobName := strings.TrimSpace(req.Job.Name)
-		if jobName == "" {
-			jobName = strings.TrimSpace(req.JobName)
-		}
 
 		copies := req.Job.Copies
-		if copies <= 0 {
-			copies = req.Copies
-		}
 		if copies <= 0 {
 			copies = 1
 		}
 
 		intervalMs := req.Job.IntervalMs
-		if intervalMs <= 0 {
-			intervalMs = req.JobInterval
-		}
 
 		// Validate Content is PDF Base64
 		contentToDecode := req.Content
@@ -399,16 +357,24 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		autoPaper := ""
+		if strings.TrimSpace(req.Paper.Size) == "" {
+			if name, ok := detectPaperFromPDF(decoded); ok {
+				autoPaper = name
+				b.Log(fmt.Sprintf("Auto paper size detected: %s", name))
+			}
+		}
+
 		options := PrintOptions{
-			PageRange:     strings.TrimSpace(firstNonEmpty(req.Pages.Range, req.PageRange)),
+			PageRange:     strings.TrimSpace(req.Pages.Range),
 			PageSet:       strings.TrimSpace(req.Pages.Set),
-			Duplex:        strings.TrimSpace(firstNonEmpty(req.Sides.Mode, req.Duplex)),
-			ColorMode:     strings.TrimSpace(firstNonEmpty(req.Color.Mode, req.ColorMode)),
-			Paper:         strings.TrimSpace(req.Paper.Size),
-			Scale:         strings.TrimSpace(firstNonEmpty(req.Layout.Scale, req.Scale)),
-			Orientation:   strings.TrimSpace(firstNonEmpty(req.Layout.Orientation, req.Orientation)),
+			Duplex:        strings.TrimSpace(req.Sides.Mode),
+			ColorMode:     strings.TrimSpace(req.Color.Mode),
+			Paper:         strings.TrimSpace(firstNonEmpty(req.Paper.Size, autoPaper)),
+			Scale:         strings.TrimSpace(req.Layout.Scale),
+			Orientation:   strings.TrimSpace(req.Layout.Orientation),
 			TrayBin:       strings.TrimSpace(req.Tray.Bin),
-			PrintSettings: strings.TrimSpace(firstNonEmpty(req.Sumatra.Settings, req.PrintSettings)),
+			PrintSettings: strings.TrimSpace(req.Sumatra.Settings),
 		}
 
 		runCount := 1
@@ -456,6 +422,79 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+var (
+	mediaBoxRegex = regexp.MustCompile(`/MediaBox\s*\[\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s*\]`)
+	cropBoxRegex  = regexp.MustCompile(`/CropBox\s*\[\s*([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s+([-0-9.]+)\s*\]`)
+)
+
+func detectPaperFromPDF(pdfData []byte) (string, bool) {
+	limit := len(pdfData)
+	if limit > 5*1024*1024 {
+		limit = 5 * 1024 * 1024
+	}
+	chunk := string(pdfData[:limit])
+	match := cropBoxRegex.FindStringSubmatch(chunk)
+	if len(match) != 5 {
+		match = mediaBoxRegex.FindStringSubmatch(chunk)
+	}
+	if len(match) != 5 {
+		return "", false
+	}
+
+	llx, err1 := strconv.ParseFloat(match[1], 64)
+	lly, err2 := strconv.ParseFloat(match[2], 64)
+	urx, err3 := strconv.ParseFloat(match[3], 64)
+	ury, err4 := strconv.ParseFloat(match[4], 64)
+	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
+		return "", false
+	}
+
+	widthPt := math.Abs(urx - llx)
+	heightPt := math.Abs(ury - lly)
+	return matchStandardPaper(widthPt, heightPt)
+}
+
+type paperSize struct {
+	Name string
+	Wmm  float64
+	Hmm  float64
+}
+
+func matchStandardPaper(widthPt, heightPt float64) (string, bool) {
+	mmPerPt := 25.4 / 72.0
+	widthMm := widthPt * mmPerPt
+	heightMm := heightPt * mmPerPt
+
+	if widthMm <= 0 || heightMm <= 0 {
+		return "", false
+	}
+
+	if widthMm > heightMm {
+		widthMm, heightMm = heightMm, widthMm
+	}
+
+	standard := []paperSize{
+		{Name: "A2", Wmm: 420, Hmm: 594},
+		{Name: "A3", Wmm: 297, Hmm: 420},
+		{Name: "A4", Wmm: 210, Hmm: 297},
+		{Name: "A5", Wmm: 148, Hmm: 210},
+		{Name: "A6", Wmm: 105, Hmm: 148},
+		{Name: "letter", Wmm: 216, Hmm: 279},
+		{Name: "legal", Wmm: 216, Hmm: 356},
+		{Name: "tabloid", Wmm: 279, Hmm: 432},
+		{Name: "statement", Wmm: 140, Hmm: 216},
+	}
+
+	const tolerance = 2.0
+	for _, size := range standard {
+		if math.Abs(widthMm-size.Wmm) <= tolerance && math.Abs(heightMm-size.Hmm) <= tolerance {
+			return size.Name, true
+		}
+	}
+
+	return "", false
 }
 
 func (b *Bridge) printPDF(printerName string, jobName string, pdfData []byte, options PrintOptions) error {
