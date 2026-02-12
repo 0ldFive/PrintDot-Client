@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -105,6 +106,51 @@ func (b *Bridge) getPrintersPlatform() ([]string, error) {
 		}
 	}
 	return printers, nil
+}
+
+func (b *Bridge) getPrinterCapabilitiesPlatform(printerName string) (map[string]interface{}, error) {
+	printerName = strings.TrimSpace(printerName)
+	if printerName == "" {
+		return nil, fmt.Errorf("printer name is empty")
+	}
+
+	escaped := strings.ReplaceAll(printerName, "'", "''")
+	ps := fmt.Sprintf(`$p = Get-CimInstance Win32_Printer -Filter "Name='%s'"; `+
+		`$c = Get-CimInstance Win32_PrinterConfiguration -Filter "Name='%s'"; `+
+		`if ($null -eq $p) { throw "Printer not found" }; `+
+		`[pscustomobject]@{ `+
+		`name = $p.Name; `+
+		`defaultPaperSize = $p.DefaultPaperSize; `+
+		`printerPaperNames = $p.PrinterPaperNames; `+
+		`paperSizes = $p.PaperSizes; `+
+		`colorSupported = $p.ColorSupported; `+
+		`duplexSupported = $p.DuplexSupported; `+
+		`driverName = $p.DriverName; `+
+		`portName = $p.PortName; `+
+		`printProcessor = $p.PrintProcessor; `+
+		`deviceId = $p.DeviceID; `+
+		`config = @{ `+
+		`paperSize = $c.PaperSize; `+
+		`orientation = $c.Orientation; `+
+		`color = $c.Color; `+
+		`duplex = $c.Duplex; `+
+		`copies = $c.Copies `+
+		`} `+
+		`} | ConvertTo-Json -Depth 4`, escaped, escaped)
+
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", ps)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("get printer capabilities failed: %v", err)
+	}
+
+	var caps map[string]interface{}
+	if err := json.Unmarshal(output, &caps); err != nil {
+		return nil, fmt.Errorf("parse printer capabilities failed: %v", err)
+	}
+
+	return caps, nil
 }
 
 func (b *Bridge) printPDFPlatform(printerName, filePath string, options PrintOptions) error {

@@ -71,7 +71,30 @@ The client can actively request the latest printer list at any time by sending t
 ```
 The server will reply with a `printer_list` message in the same format as **3.2.1**.
 
-#### 3.2.3 Send Print Job (Client -> Server)
+#### 3.2.3 Get Printer Capabilities (Client -> Server)
+Request capabilities for a specific printer:
+```json
+{
+  "type": "get_printer_caps",
+  "printer": "Microsoft Print to PDF"
+}
+```
+Example response:
+```json
+{
+  "type": "printer_caps",
+  "printer": "Microsoft Print to PDF",
+  "data": {
+    "paperSizes": ["A4", "Letter"],
+    "printerPaperNames": ["A4", "Letter"],
+    "duplexSupported": false,
+    "colorSupported": true
+  }
+}
+```
+> Note: fields vary by platform. Windows returns Win32_Printer/Win32_PrinterConfiguration info; Linux/macOS returns parsed lpoptions data.
+
+#### 3.2.4 Send Print Job (Client -> Server)
 The JSON payload is grouped by feature:
 
 ```json

@@ -27,6 +27,61 @@ func (b *Bridge) getPrintersPlatform() ([]string, error) {
 	return printers, nil
 }
 
+func (b *Bridge) getPrinterCapabilitiesPlatform(printerName string) (map[string]interface{}, error) {
+	printerName = strings.TrimSpace(printerName)
+	if printerName == "" {
+		return nil, fmt.Errorf("printer name is empty")
+	}
+
+	cmd := exec.Command("lpoptions", "-p", printerName, "-l")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("lpoptions error: %v, output: %s", err, string(output))
+	}
+
+	options := map[string]map[string]interface{}{}
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		left := strings.TrimSpace(parts[0])
+		right := strings.TrimSpace(parts[1])
+		optName := left
+		if idx := strings.Index(left, "/"); idx >= 0 {
+			optName = strings.TrimSpace(left[:idx])
+		}
+
+		values := []string{}
+		defaultValue := ""
+		for _, token := range strings.Fields(right) {
+			if strings.HasPrefix(token, "*") {
+				clean := strings.TrimPrefix(token, "*")
+				defaultValue = clean
+				values = append(values, clean)
+				continue
+			}
+			values = append(values, token)
+		}
+
+		options[optName] = map[string]interface{}{
+			"values":  values,
+			"default": defaultValue,
+			"raw":     right,
+		}
+	}
+
+	return map[string]interface{}{
+		"printer": printerName,
+		"options": options,
+	}, nil
+}
+
 func (b *Bridge) printPDFPlatform(printerName, filePath string, options PrintOptions) error {
 	args := []string{"-d", printerName}
 

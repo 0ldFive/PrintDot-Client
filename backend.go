@@ -109,6 +109,10 @@ func (b *Bridge) GetPrinters() ([]string, error) {
 	return b.getPrintersPlatform()
 }
 
+func (b *Bridge) GetPrinterCapabilities(printerName string) (map[string]interface{}, error) {
+	return b.getPrinterCapabilitiesPlatform(printerName)
+}
+
 func (b *Bridge) StartServer(port string, key string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -314,6 +318,31 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				}
 				c.WriteJSON(resp)
 			}
+			continue
+		}
+
+		if msgType, ok := rawMsg["type"].(string); ok && msgType == "get_printer_caps" {
+			printer, _ := rawMsg["printer"].(string)
+			printer = strings.TrimSpace(printer)
+			if printer == "" {
+				resp := Response{Status: "error", Message: "printer is required"}
+				c.WriteJSON(resp)
+				continue
+			}
+
+			caps, err := b.GetPrinterCapabilities(printer)
+			if err != nil {
+				resp := Response{Status: "error", Message: err.Error()}
+				c.WriteJSON(resp)
+				continue
+			}
+
+			msg := map[string]interface{}{
+				"type":    "printer_caps",
+				"printer": printer,
+				"data":    caps,
+			}
+			c.WriteJSON(msg)
 			continue
 		}
 

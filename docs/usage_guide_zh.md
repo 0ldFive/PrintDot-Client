@@ -75,7 +75,30 @@ wails dev
 ```
 服务端将回复与 **3.2.1** 相同格式的 `printer_list` 消息。
 
-#### 3.2.3 发送打印任务 (Client -> Server)
+#### 3.2.3 获取打印机能力 (Client -> Server)
+客户端可以请求指定打印机的可用参数：
+```json
+{
+  "type": "get_printer_caps",
+  "printer": "Microsoft Print to PDF"
+}
+```
+服务端响应示例：
+```json
+{
+  "type": "printer_caps",
+  "printer": "Microsoft Print to PDF",
+  "data": {
+    "paperSizes": ["A4", "Letter"],
+    "printerPaperNames": ["A4", "Letter"],
+    "duplexSupported": false,
+    "colorSupported": true
+  }
+}
+```
+> 说明：不同系统返回字段会有差异，Windows 返回 Win32_Printer/Win32_PrinterConfiguration 信息；Linux/macOS 返回 lpoptions 解析结果。
+
+#### 3.2.4 发送打印任务 (Client -> Server)
 客户端发送的 JSON 数据包结构如下（按功能分类）：
 
 ```json
