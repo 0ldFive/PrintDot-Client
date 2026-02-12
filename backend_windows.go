@@ -115,6 +115,9 @@ func (b *Bridge) getPrintersPlatform() ([]PrinterInfo, error) {
 		if name == "" {
 			continue
 		}
+		if strings.EqualFold(name, "Name") {
+			continue
+		}
 		isDefault := strings.EqualFold(strings.TrimSpace(record[1]), "TRUE")
 		printers = append(printers, PrinterInfo{Name: name, IsDefault: isDefault})
 	}

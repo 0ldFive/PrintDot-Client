@@ -48,7 +48,12 @@ const refreshPrinters = async () => {
       GetPrinters(),
       minDelay
     ])
-    printers.value = fetchedPrinters
+    printers.value = fetchedPrinters.slice().sort((a, b) => {
+      if (a.isDefault !== b.isDefault) {
+        return a.isDefault ? -1 : 1
+      }
+      return a.name.localeCompare(b.name)
+    })
   } catch (e) {
     console.error(e)
   } finally {
