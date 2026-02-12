@@ -114,9 +114,6 @@ func (b *Bridge) printPDFPlatform(printerName, filePath string, options PrintOpt
 	}
 
 	settings := buildSumatraPrintSettings(options)
-	if options.PageRange != "" && options.PrintSettings == "" {
-		b.Log("PageRange is not applied for SumatraPDF unless printSettings is provided")
-	}
 
 	args := []string{"-print-to", printerName}
 	if settings != "" {
@@ -165,21 +162,41 @@ func fileExists(path string) bool {
 
 func buildSumatraPrintSettings(options PrintOptions) string {
 	if options.PrintSettings != "" {
-		return options.PrintSettings
+		return mergeSumatraSettings(options.PrintSettings, options.Orientation)
 	}
 
 	var settings []string
+
+	if options.PageRange != "" {
+		settings = append(settings, options.PageRange)
+	}
+
+	switch strings.ToLower(strings.TrimSpace(options.PageSet)) {
+	case "even":
+		settings = append(settings, "even")
+	case "odd":
+		settings = append(settings, "odd")
+	}
 
 	switch strings.ToLower(strings.TrimSpace(options.Scale)) {
 	case "fit":
 		settings = append(settings, "fit")
 	case "shrink":
 		settings = append(settings, "shrink")
-	case "none", "actual":
-		settings = append(settings, "none")
+	case "none", "actual", "noscale":
+		settings = append(settings, "noscale")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(options.Orientation)) {
+	case "portrait":
+		settings = append(settings, "portrait")
+	case "landscape":
+		settings = append(settings, "landscape")
 	}
 
 	switch strings.ToLower(strings.TrimSpace(options.Duplex)) {
+	case "simplex", "one-sided":
+		settings = append(settings, "simplex")
 	case "long-edge", "long", "duplex", "duplexlong":
 		settings = append(settings, "duplex")
 	case "short-edge", "short", "duplexshort":
@@ -187,13 +204,47 @@ func buildSumatraPrintSettings(options PrintOptions) string {
 	}
 
 	switch strings.ToLower(strings.TrimSpace(options.ColorMode)) {
+	case "color":
+		settings = append(settings, "color")
 	case "mono", "monochrome", "grayscale", "gray":
-		settings = append(settings, "mono")
+		settings = append(settings, "monochrome")
 	}
 
 	if options.Paper != "" {
 		settings = append(settings, fmt.Sprintf("paper=%s", options.Paper))
 	}
 
+	if options.TrayBin != "" {
+		settings = append(settings, fmt.Sprintf("bin=%s", options.TrayBin))
+	}
+
+	if options.Copies > 1 {
+		settings = append(settings, fmt.Sprintf("%dx", options.Copies))
+	}
+
 	return strings.Join(settings, ",")
+}
+
+func mergeSumatraSettings(settings string, orientation string) string {
+	parts := strings.Split(settings, ",")
+	result := make([]string, 0, len(parts)+1)
+
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		lower := strings.ToLower(trimmed)
+		if lower == "portrait" || lower == "landscape" {
+			continue
+		}
+		result = append(result, trimmed)
+	}
+
+	switch strings.ToLower(strings.TrimSpace(orientation)) {
+	case "portrait", "landscape":
+		result = append(result, strings.ToLower(strings.TrimSpace(orientation)))
+	}
+
+	return strings.Join(result, ",")
 }

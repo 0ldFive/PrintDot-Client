@@ -76,24 +76,47 @@ wails dev
 服务端将回复与 **3.2.1** 相同格式的 `printer_list` 消息。
 
 #### 3.2.3 发送打印任务 (Client -> Server)
-客户端发送的 JSON 数据包结构如下：
+客户端发送的 JSON 数据包结构如下（按功能分类）：
 
 ```json
 {
   "printer": "Microsoft Print to PDF",  // [必填] 目标打印机名称
   "content": "data:application/pdf;base64,JVBERi...", // [必填] Base64 编码的 PDF 内容 (支持带前缀或纯 Base64)
-  "jobName": "My Print Job 001",        // [选填] 任务名称 (仅用于日志记录)
   "key": "123456",                      // [选填] 鉴权密钥 (若连接时已验证可省略)
-  "copies": 2,                          // [选填] 打印份数，默认 1
-  "jobInterval": 1000,                  // [选填] 份数间延迟(毫秒)，用于手动隔张打印
-  "pageRange": "1-3,5",                // [选填] 打印页码范围 (Linux/macOS 支持；Windows 需配合 printSettings)
-  "duplex": "long-edge",               // [选填] 双面: simplex | long-edge | short-edge
-  "colorMode": "mono",                 // [选填] 颜色: color | mono
-  "paper": "A4",                        // [选填] 纸张: A4 | Letter | ...
-  "scale": "fit",                      // [选填] 缩放: fit | shrink | none
-  "printSettings": "fit,duplex"        // [选填] SumatraPDF 原生 -print-settings 字符串 (Windows)
+  "job": {
+    "name": "My Print Job 001",        // [选填] 任务名称 (仅用于日志记录)
+    "copies": 2,                         // [选填] 打印份数，默认 1
+    "intervalMs": 1000                   // [选填] 份数间延迟(毫秒)，用于手动隔张打印
+  },
+  "pages": {
+    "range": "1-3,5",                  // [选填] 页码范围 (支持 N / N-M / N,M / 反向区间)
+    "set": "odd"                       // [选填] odd | even
+  },
+  "layout": {
+    "scale": "fit",                    // [选填] noscale | shrink | fit
+    "orientation": "portrait"          // [选填] portrait | landscape
+  },
+  "color": {
+    "mode": "color"                    // [选填] color | monochrome
+  },
+  "sides": {
+    "mode": "duplex"                   // [选填] simplex | duplex | duplexshort | duplexlong
+  },
+  "paper": {
+    "size": "A4"                       // [选填] A4 | letter | legal | tabloid | statement | A2 | A3 | A5 | A6
+  },
+  "tray": {
+    "bin": "2"                         // [选填] 纸盒编号或名称，例如 2 / Manual
+  },
+  "sumatra": {
+    "settings": "fit,duplex"           // [选填] SumatraPDF 原生 -print-settings 字符串 (Windows)
+  }
 }
 ```
+
+> **兼容说明**:
+> - 旧字段（`jobName` / `copies` / `jobInterval` / `pageRange` / `duplex` / `colorMode` / `paper` / `scale` / `printSettings`）仍可用，但优先使用分组结构。
+> - `sumatra.settings` 存在时，会直接覆盖自动生成的 SumatraPDF 参数。
 
 > **注意**: 
 > 1. `content` 字段必须是 **PDF 文件的 Base64 编码字符串**。
@@ -103,17 +126,38 @@ wails dev
 
 | 字段 | 类型 | 说明 |
 | :--- | :--- | :--- |
+| 字段 | 类型 | 说明 |
+| :--- | :--- | :--- |
 | `printer` | String | 目标打印机名称。 |
 | `content` | String | **Base64 编码的 PDF 内容**。 |
-| `jobName` | String | 打印任务名称。 |
-| `copies` | Integer | **打印份数**。服务端会循环调用系统打印命令指定次数。 |
-| `jobInterval` | Integer | **隔张间隔 (ms)**。每份打印之间的等待时间。 |
-| `pageRange` | String | **页码范围**。例如 `1-3,5`。Linux/macOS 支持；Windows 需配合 `printSettings`。 |
-| `duplex` | String | **双面设置**：`simplex` / `long-edge` / `short-edge`。 |
-| `colorMode` | String | **颜色模式**：`color` / `mono`。 |
-| `paper` | String | **纸张大小**：如 `A4`、`Letter`。 |
-| `scale` | String | **缩放策略**：`fit` / `shrink` / `none`。 |
-| `printSettings` | String | **SumatraPDF 原生设置**（Windows）。会直接传给 `-print-settings`。 |
+| `job.name` | String | 打印任务名称。 |
+| `job.copies` | Integer | **打印份数**。`intervalMs` 为 0 时由系统命令一次性处理。 |
+| `job.intervalMs` | Integer | **隔张间隔 (ms)**。大于 0 时服务端逐份打印。 |
+| `pages.range` | String | **页码范围**：`N` / `N-M` / `N,M` / 反向区间。 |
+| `pages.set` | String | **奇偶页**：`odd` / `even`。 |
+| `layout.scale` | String | **缩放**：`noscale` / `shrink` / `fit`。 |
+| `layout.orientation` | String | **方向**：`portrait` / `landscape`。 |
+| `color.mode` | String | **颜色模式**：`color` / `monochrome`。 |
+| `sides.mode` | String | **单双面**：`simplex` / `duplex` / `duplexshort` / `duplexlong`。 |
+| `paper.size` | String | **纸张**：如 `A4`、`letter`、`legal`。 |
+| `tray.bin` | String | **纸盒**：编号或名称。 |
+| `sumatra.settings` | String | **SumatraPDF 原生设置**（Windows），会直接传给 `-print-settings`。 |
+
+#### 3.2.3.1 平台支持说明
+**Windows (SumatraPDF)**
+- `pages.range` / `pages.set` / `layout.scale` / `layout.orientation` / `color.mode` / `sides.mode` / `paper.size` / `tray.bin` / `job.copies` 会被转换为 `-print-settings`。
+- `sumatra.settings` 提供时，自动转换会被覆盖。
+
+**Linux/macOS (lp/CUPS)**
+- `pages.range` -> `-P`。
+- `pages.set` -> `-o page-set=odd|even`。
+- `layout.scale` -> `fit-to-page` / `scaling=100`（`shrink` 使用默认行为）。
+- `layout.orientation` -> `-o orientation-requested=3|4`（驱动可能忽略）。
+- `color.mode` -> `-o ColorModel=Gray` / `-o ColorModel=RGB`（部分驱动可能忽略）。
+- `sides.mode` -> `-o sides=...`。
+- `paper.size` -> `-o media=...`。
+- `tray.bin` -> `-o InputSlot=...`（依赖驱动支持）。
+- `sumatra.settings` 不适用于 Linux/macOS。
 
 #### 3.2.4 服务端响应 (Server -> Client)
 服务端会返回每次打印的结果：
@@ -153,11 +197,35 @@ socket.onmessage = (event) => {
         // 示例：主动刷新打印机列表
         // socket.send(JSON.stringify({ type: 'get_printers' }));
         
-        // 发送打印任务
+        // 发送打印任务（按功能分组）
         socket.send(JSON.stringify({
-            printer: msg.data[0],
-            content: "JVBERi0xLjQKJ...", // Base64 PDF Data
-            copies: 1
+          printer: msg.data[0],
+          content: "JVBERi0xLjQKJ...", // Base64 PDF Data
+          job: {
+            name: "Test Job",
+            copies: 2,
+            intervalMs: 0
+          },
+          pages: {
+            range: "1-3,5",
+            set: "odd"
+          },
+          layout: {
+            scale: "fit",
+            orientation: "portrait"
+          },
+          color: {
+            mode: "color"
+          },
+          sides: {
+            mode: "duplex"
+          },
+          paper: {
+            size: "A4"
+          },
+          tray: {
+            bin: "2"
+          }
         }));
     } else {
         console.log('收到回复:', msg);

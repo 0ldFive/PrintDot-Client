@@ -72,24 +72,47 @@ The client can actively request the latest printer list at any time by sending t
 The server will reply with a `printer_list` message in the same format as **3.2.1**.
 
 #### 3.2.3 Send Print Job (Client -> Server)
-The JSON data packet structure sent by the client is as follows:
+The JSON payload is grouped by feature:
 
 ```json
 {
   "printer": "Microsoft Print to PDF",  // [Required] Target printer name
   "content": "data:application/pdf;base64,JVBERi...", // [Required] Base64 encoded PDF content (Supports Data URI prefix or raw Base64)
-  "jobName": "My Print Job 001",        // [Optional] Job name (for logging only)
   "key": "123456",                      // [Optional] Auth key (can be omitted if verified during connection)
-  "copies": 2,                          // [Optional] Number of copies, default 1
-  "jobInterval": 1000,                  // [Optional] Delay between copies (ms), used for manual interval
-  "pageRange": "1-3,5",                // [Optional] Page range (Linux/macOS; Windows needs printSettings)
-  "duplex": "long-edge",               // [Optional] Duplex: simplex | long-edge | short-edge
-  "colorMode": "mono",                 // [Optional] Color: color | mono
-  "paper": "A4",                        // [Optional] Paper size: A4 | Letter | ...
-  "scale": "fit",                      // [Optional] Scale: fit | shrink | none
-  "printSettings": "fit,duplex"        // [Optional] SumatraPDF native -print-settings string (Windows)
+  "job": {
+    "name": "My Print Job 001",        // [Optional] Job name (for logging only)
+    "copies": 2,                         // [Optional] Number of copies, default 1
+    "intervalMs": 1000                   // [Optional] Delay between copies (ms)
+  },
+  "pages": {
+    "range": "1-3,5",                  // [Optional] Page range (N / N-M / N,M / reverse ranges)
+    "set": "odd"                       // [Optional] odd | even
+  },
+  "layout": {
+    "scale": "fit",                    // [Optional] noscale | shrink | fit
+    "orientation": "portrait"          // [Optional] portrait | landscape
+  },
+  "color": {
+    "mode": "color"                    // [Optional] color | monochrome
+  },
+  "sides": {
+    "mode": "duplex"                   // [Optional] simplex | duplex | duplexshort | duplexlong
+  },
+  "paper": {
+    "size": "A4"                       // [Optional] A4 | letter | legal | tabloid | statement | A2 | A3 | A5 | A6
+  },
+  "tray": {
+    "bin": "2"                         // [Optional] Tray number or name, e.g. 2 / Manual
+  },
+  "sumatra": {
+    "settings": "fit,duplex"           // [Optional] SumatraPDF native -print-settings string (Windows)
+  }
 }
 ```
+
+> **Compatibility**:
+> - Legacy fields (`jobName` / `copies` / `jobInterval` / `pageRange` / `duplex` / `colorMode` / `paper` / `scale` / `printSettings`) are still accepted, but grouped fields take precedence.
+> - When `sumatra.settings` is provided, it overrides auto-generated SumatraPDF parameters.
 
 > **Note**: 
 > 1. The `content` field must be a **Base64 encoded string of a PDF file**.
@@ -99,17 +122,38 @@ The JSON data packet structure sent by the client is as follows:
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
+| Field | Type | Description |
+| :--- | :--- | :--- |
 | `printer` | String | Target printer name. |
 | `content` | String | **Base64 encoded PDF content**. |
-| `jobName` | String | Print job name. |
-| `copies` | Integer | **Number of copies**. The server invokes the system print command repeatedly. |
-| `jobInterval` | Integer | **Interval (ms)**. Wait time between each copy. |
-| `pageRange` | String | **Page range** like `1-3,5`. Linux/macOS supported; Windows needs `printSettings`. |
-| `duplex` | String | **Duplex**: `simplex` / `long-edge` / `short-edge`. |
-| `colorMode` | String | **Color mode**: `color` / `mono`. |
-| `paper` | String | **Paper size**: e.g. `A4`, `Letter`. |
-| `scale` | String | **Scaling**: `fit` / `shrink` / `none`. |
-| `printSettings` | String | **SumatraPDF native settings** (Windows). Passed to `-print-settings`. |
+| `job.name` | String | Print job name. |
+| `job.copies` | Integer | **Number of copies**. If `intervalMs` is 0, handled by the system command. |
+| `job.intervalMs` | Integer | **Interval (ms)**. When > 0, the server prints one copy per run. |
+| `pages.range` | String | **Page range**: `N` / `N-M` / `N,M` / reverse ranges. |
+| `pages.set` | String | **Odd/Even**: `odd` / `even`. |
+| `layout.scale` | String | **Scaling**: `noscale` / `shrink` / `fit`. |
+| `layout.orientation` | String | **Orientation**: `portrait` / `landscape`. |
+| `color.mode` | String | **Color mode**: `color` / `monochrome`. |
+| `sides.mode` | String | **Duplex**: `simplex` / `duplex` / `duplexshort` / `duplexlong`. |
+| `paper.size` | String | **Paper size**: e.g. `A4`, `letter`, `legal`. |
+| `tray.bin` | String | **Tray**: number or name. |
+| `sumatra.settings` | String | **SumatraPDF native settings** (Windows), passed to `-print-settings`. |
+
+#### 3.2.3.1 Platform Support
+**Windows (SumatraPDF)**
+- `pages.range` / `pages.set` / `layout.scale` / `layout.orientation` / `color.mode` / `sides.mode` / `paper.size` / `tray.bin` / `job.copies` are converted to `-print-settings`.
+- `sumatra.settings` overrides auto-generated settings.
+
+**Linux/macOS (lp/CUPS)**
+- `pages.range` -> `-P`.
+- `pages.set` -> `-o page-set=odd|even`.
+- `layout.scale` -> `fit-to-page` / `scaling=100` (`shrink` uses default behavior).
+- `layout.orientation` -> `-o orientation-requested=3|4` (may be ignored by drivers).
+- `color.mode` -> `-o ColorModel=Gray` / `-o ColorModel=RGB` (may be ignored by drivers).
+- `sides.mode` -> `-o sides=...`.
+- `paper.size` -> `-o media=...`.
+- `tray.bin` -> `-o InputSlot=...` (depends on driver support).
+- `sumatra.settings` is not applicable on Linux/macOS.
 
 #### 3.2.4 Server Response (Server -> Client)
 The server returns the result of each print:
@@ -147,11 +191,35 @@ socket.onmessage = (event) => {
         // Example: Actively refresh printer list
         // socket.send(JSON.stringify({ type: 'get_printers' }));
 
-        // Send print job
+        // Send print job (grouped by feature)
         socket.send(JSON.stringify({
-            printer: msg.data[0],
-            content: "JVBERi0xLjQKJ...", // Base64 PDF Data
-            copies: 1
+          printer: msg.data[0],
+          content: "JVBERi0xLjQKJ...", // Base64 PDF Data
+          job: {
+            name: "Test Job",
+            copies: 2,
+            intervalMs: 0
+          },
+          pages: {
+            range: "1-3,5",
+            set: "odd"
+          },
+          layout: {
+            scale: "fit",
+            orientation: "portrait"
+          },
+          color: {
+            mode: "color"
+          },
+          sides: {
+            mode: "duplex"
+          },
+          paper: {
+            size: "A4"
+          },
+          tray: {
+            bin: "2"
+          }
         }));
     } else {
         console.log('Response:', msg);

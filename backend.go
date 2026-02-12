@@ -167,29 +167,88 @@ var upgrader = websocket.Upgrader{
 }
 
 type PrintRequest struct {
-	Printer       string `json:"printer"`
-	Content       string `json:"content"` // Base64 encoded PDF
-	Key           string `json:"key"`
+	Printer string `json:"printer"`
+	Content string `json:"content"` // Base64 encoded PDF
+	Key     string `json:"key"`
+
+	Job struct {
+		Name       string `json:"name"`
+		Copies     int    `json:"copies"`
+		IntervalMs int    `json:"intervalMs"`
+	} `json:"job"`
+	Pages struct {
+		Range string `json:"range"`
+		Set   string `json:"set"`
+	} `json:"pages"`
+	Layout struct {
+		Scale       string `json:"scale"`
+		Orientation string `json:"orientation"`
+	} `json:"layout"`
+	Color struct {
+		Mode string `json:"mode"`
+	} `json:"color"`
+	Sides struct {
+		Mode string `json:"mode"`
+	} `json:"sides"`
+	Paper PaperSpec `json:"paper"`
+	Tray  struct {
+		Bin string `json:"bin"`
+	} `json:"tray"`
+	Sumatra struct {
+		Settings string `json:"settings"`
+	} `json:"sumatra"`
+
+	// Legacy fields ignored but kept for compatibility
 	JobName       string `json:"jobName"`
 	Copies        int    `json:"copies"`      // Number of copies
 	JobInterval   int    `json:"jobInterval"` // Delay between copies in ms
 	PageRange     string `json:"pageRange"`
 	Duplex        string `json:"duplex"`
 	ColorMode     string `json:"colorMode"`
-	Paper         string `json:"paper"`
 	Scale         string `json:"scale"`
 	PrintSettings string `json:"printSettings"`
-	// Legacy fields ignored but kept for compatibility
-	Orientation string `json:"orientation"`
-	DPI         int    `json:"dpi"`
+	Orientation   string `json:"orientation"`
+	DPI           int    `json:"dpi"`
+}
+
+type PaperSpec struct {
+	Size string `json:"size"`
+}
+
+func (p *PaperSpec) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+
+	if data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		p.Size = s
+		return nil
+	}
+
+	var tmp struct {
+		Size string `json:"size"`
+	}
+	if err := json.Unmarshal(data, &tmp); err != nil {
+		return err
+	}
+	p.Size = tmp.Size
+	return nil
 }
 
 type PrintOptions struct {
 	PageRange     string
+	PageSet       string
 	Duplex        string
 	ColorMode     string
 	Paper         string
 	Scale         string
+	Orientation   string
+	TrayBin       string
+	Copies        int
 	PrintSettings string
 }
 
@@ -301,8 +360,22 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		if req.Copies <= 0 {
-			req.Copies = 1
+		jobName := strings.TrimSpace(req.Job.Name)
+		if jobName == "" {
+			jobName = strings.TrimSpace(req.JobName)
+		}
+
+		copies := req.Job.Copies
+		if copies <= 0 {
+			copies = req.Copies
+		}
+		if copies <= 0 {
+			copies = 1
+		}
+
+		intervalMs := req.Job.IntervalMs
+		if intervalMs <= 0 {
+			intervalMs = req.JobInterval
 		}
 
 		// Validate Content is PDF Base64
@@ -327,42 +400,62 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 
 		options := PrintOptions{
-			PageRange:     strings.TrimSpace(req.PageRange),
-			Duplex:        strings.TrimSpace(req.Duplex),
-			ColorMode:     strings.TrimSpace(req.ColorMode),
-			Paper:         strings.TrimSpace(req.Paper),
-			Scale:         strings.TrimSpace(req.Scale),
-			PrintSettings: strings.TrimSpace(req.PrintSettings),
+			PageRange:     strings.TrimSpace(firstNonEmpty(req.Pages.Range, req.PageRange)),
+			PageSet:       strings.TrimSpace(req.Pages.Set),
+			Duplex:        strings.TrimSpace(firstNonEmpty(req.Sides.Mode, req.Duplex)),
+			ColorMode:     strings.TrimSpace(firstNonEmpty(req.Color.Mode, req.ColorMode)),
+			Paper:         strings.TrimSpace(req.Paper.Size),
+			Scale:         strings.TrimSpace(firstNonEmpty(req.Layout.Scale, req.Scale)),
+			Orientation:   strings.TrimSpace(firstNonEmpty(req.Layout.Orientation, req.Orientation)),
+			TrayBin:       strings.TrimSpace(req.Tray.Bin),
+			PrintSettings: strings.TrimSpace(firstNonEmpty(req.Sumatra.Settings, req.PrintSettings)),
 		}
+
+		runCount := 1
+		perRunCopies := copies
+		if intervalMs > 0 {
+			runCount = copies
+			perRunCopies = 1
+		}
+		options.Copies = perRunCopies
 
 		successCount := 0
 		var lastErr error
 
-		for i := 0; i < req.Copies; i++ {
-			if i > 0 && req.JobInterval > 0 {
-				time.Sleep(time.Duration(req.JobInterval) * time.Millisecond)
+		for i := 0; i < runCount; i++ {
+			if i > 0 && intervalMs > 0 {
+				time.Sleep(time.Duration(intervalMs) * time.Millisecond)
 			}
 
-			err = b.printPDF(req.Printer, req.JobName, decoded, options)
+			err = b.printPDF(req.Printer, jobName, decoded, options)
 			if err != nil {
 				lastErr = err
 				b.Log(fmt.Sprintf("Print error (copy %d): %v", i+1, err))
 				break
 			} else {
-				successCount++
+				successCount += perRunCopies
 			}
 		}
 
-		if successCount == req.Copies {
+		if successCount == copies {
 			b.Log("Print success")
 			resp := Response{Status: "success", Message: "Printed successfully"}
 			c.WriteJSON(resp)
 		} else {
-			msg := fmt.Sprintf("Printed %d/%d copies. Error: %v", successCount, req.Copies, lastErr)
+			msg := fmt.Sprintf("Printed %d/%d copies. Error: %v", successCount, copies, lastErr)
 			b.Log(msg)
 			c.WriteJSON(Response{Status: "error", Message: msg})
 		}
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (b *Bridge) printPDF(printerName string, jobName string, pdfData []byte, options PrintOptions) error {
