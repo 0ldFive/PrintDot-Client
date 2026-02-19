@@ -177,10 +177,10 @@ const disconnectRemote = async () => {
   isDisconnecting.value = true
   try {
     settings.value.remoteAutoConnect = false
-    await SaveSettings(settings.value)
+    remoteStatus.value.autoReconnect = false
+    await saveSettings()
     if (logPort.value > 0) {
       await fetch(`http://localhost:${logPort.value}/api/forwarder/disconnect`, { method: 'POST' })
-      await fetch(`http://localhost:${logPort.value}/api/reload`, { method: 'POST' })
     } else {
       await DisconnectRemoteForwarder()
     }

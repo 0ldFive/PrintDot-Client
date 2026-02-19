@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -136,13 +135,8 @@ func (sm *SettingsManager) Save(settings AppSettings) error {
 	}
 
 	// Handle AutoStart
-	exe, err := os.Executable()
-	if err == nil {
-		if settings.AutoStart {
-			exec.Command("reg", "add", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "PrintDotClient", "/t", "REG_SZ", "/d", exe, "/f").Run()
-		} else {
-			exec.Command("reg", "delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "PrintDotClient", "/f").Run()
-		}
+	if settings.AutoStart != sm.settings.AutoStart {
+		setAutoStart(settings.AutoStart)
 	}
 
 	return os.WriteFile(sm.filePath, data, 0644)
