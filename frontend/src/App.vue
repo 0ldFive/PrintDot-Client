@@ -7,17 +7,17 @@ import Settings from './components/Settings.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t, locale } = useI18n()
-const appMode = ref("main")
+const appMode = ref('main')
 const logPort = ref(0)
 const logs = ref<string[]>([])
 const clientCount = ref(0)
-let logPollInterval: any = null
+let logPollInterval: number | null = null
 let forwarderStream: EventSource | null = null
 let forwarderPoll: number | null = null
 
 const config = reactive({
-  port: "1122",
-  key: ""
+  port: '1122',
+  key: ''
 })
 
 const connectionUrl = computed(() => {
@@ -28,7 +28,7 @@ const connectionUrl = computed(() => {
   return url
 })
 
-const serverStatus = ref("Stopped")
+const serverStatus = ref('Stopped')
 type PrinterInfo = {
   name: string
   isDefault: boolean
@@ -42,7 +42,7 @@ const refreshPrinters = async () => {
   isLoadingPrinters.value = true
   printers.value = []
 
-  const minDelay = new Promise(resolve => setTimeout(resolve, 800))
+  const minDelay = new Promise((resolve) => setTimeout(resolve, 800))
 
   try {
     const [fetchedPrinters] = await Promise.all([
@@ -62,6 +62,24 @@ const refreshPrinters = async () => {
   }
 }
 
+const toggleServer = async () => {
+  if (serverStatus.value === 'Running') {
+    try {
+      await StopServer()
+      serverStatus.value = 'Stopped'
+    } catch (e) {
+      console.error(e)
+    }
+  } else {
+    try {
+      await StartServer(config.port, config.key)
+      serverStatus.value = 'Running'
+    } catch (e) {
+      console.error(e)
+    }
+  }
+}
+
 type RemoteStatus = {
   connected: boolean
   lastError: string
@@ -76,24 +94,6 @@ const remoteStatus = ref<RemoteStatus>({
 const isConnecting = ref(false)
 const isDisconnecting = ref(false)
 
-const toggleServer = async () => {
-  if (serverStatus.value === "Running") {
-    try {
-      await StopServer()
-      serverStatus.value = "Stopped"
-    } catch (e) {
-      console.error(e)
-    }
-  } else {
-    try {
-      await StartServer(config.port, config.key)
-      serverStatus.value = "Running"
-    } catch (e) {
-      console.error(e)
-    }
-  }
-}
-
 const fetchLogs = async () => {
   try {
     const res = await fetch(`http://localhost:${logPort.value}/api/logs`)
@@ -102,7 +102,7 @@ const fetchLogs = async () => {
       logs.value = data.reverse()
     }
   } catch (e) {
-    console.error("Failed to fetch logs", e)
+    console.error('Failed to fetch logs', e)
   }
 }
 
@@ -111,7 +111,7 @@ const clearAllLogs = async () => {
   try {
     await fetch(`http://localhost:${logPort.value}/api/logs/clear`, { method: 'POST' })
   } catch (e) {
-    console.error("Failed to clear logs", e)
+    console.error('Failed to clear logs', e)
   }
 }
 

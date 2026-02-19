@@ -628,7 +628,10 @@ func (b *Bridge) StopLogServer() error {
 	if b.logServer == nil {
 		return nil
 	}
-	if err := b.logServer.Shutdown(context.Background()); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := b.logServer.Shutdown(ctx); err != nil {
+		_ = b.logServer.Close()
 		return err
 	}
 	b.logServer = nil
