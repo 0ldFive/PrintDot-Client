@@ -48,12 +48,12 @@ type Bridge struct {
 	onClientConnect func(string)
 
 	// Remote forwarding
-	remoteMu     sync.Mutex
-	remoteStop   chan struct{}
-	remoteWg     sync.WaitGroup
-	remoteCfg    RemoteConfig
-	remoteConn   *websocket.Conn
-	remoteStatus RemoteForwarderStatus
+	remoteMu                sync.Mutex
+	remoteStop              chan struct{}
+	remoteWg                sync.WaitGroup
+	remoteCfg               RemoteConfig
+	remoteConn              *websocket.Conn
+	remoteStatus            RemoteForwarderStatus
 	forwarderStatusProvider func() RemoteForwarderStatus
 	forwarderConnect        func()
 	forwarderDisconnect     func()

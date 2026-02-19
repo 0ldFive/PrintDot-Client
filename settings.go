@@ -12,17 +12,17 @@ import (
 )
 
 type AppSettings struct {
-	Language         string `json:"language"`
-	AutoStart        bool   `json:"autoStart"`
-	RemoteAutoConnect bool  `json:"remoteAutoConnect"`
-	RemoteServer     string `json:"remoteServer"`
-	RemoteAuthURL    string `json:"remoteAuthUrl"`
-	RemoteWsURL      string `json:"remoteWsUrl"`
-	RemoteUser       string `json:"remoteUser"`
-	RemotePassword   string `json:"remotePassword"`
-	RemoteClientID   string `json:"remoteClientId"`
-	RemoteSecretKey  string `json:"remoteSecretKey"`
-	RemoteClientName string `json:"remoteClientName"`
+	Language          string `json:"language"`
+	AutoStart         bool   `json:"autoStart"`
+	RemoteAutoConnect bool   `json:"remoteAutoConnect"`
+	RemoteServer      string `json:"remoteServer"`
+	RemoteAuthURL     string `json:"remoteAuthUrl"`
+	RemoteWsURL       string `json:"remoteWsUrl"`
+	RemoteUser        string `json:"remoteUser"`
+	RemotePassword    string `json:"remotePassword"`
+	RemoteClientID    string `json:"remoteClientId"`
+	RemoteSecretKey   string `json:"remoteSecretKey"`
+	RemoteClientName  string `json:"remoteClientName"`
 	// Window State
 	WindowWidth  int  `json:"windowWidth"`
 	WindowHeight int  `json:"windowHeight"`
@@ -55,8 +55,8 @@ func NewSettingsManager() *SettingsManager {
 	sm := &SettingsManager{
 		filePath: filepath.Join(appConfigDir, "settings.json"),
 		settings: AppSettings{
-			Language:  defaultLang,
-			AutoStart: false,
+			Language:          defaultLang,
+			AutoStart:         false,
 			RemoteAutoConnect: true,
 		},
 	}
