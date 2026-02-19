@@ -12,6 +12,8 @@ const logPort = ref(0)
 const logs = ref<string[]>([])
 const clientCount = ref(0)
 let logPollInterval: any = null
+let forwarderStream: EventSource | null = null
+let forwarderPoll: number | null = null
 
 const config = reactive({
   port: "1122",
@@ -38,11 +40,10 @@ const isLoadingPrinters = ref(false)
 const refreshPrinters = async () => {
   if (isLoadingPrinters.value) return
   isLoadingPrinters.value = true
-  printers.value = [] // Clear list immediately
-  
-  // Add a minimum delay to ensure animation is visible
+  printers.value = []
+
   const minDelay = new Promise(resolve => setTimeout(resolve, 800))
-  
+
   try {
     const [fetchedPrinters] = await Promise.all([
       GetPrinters(),
@@ -60,6 +61,20 @@ const refreshPrinters = async () => {
     isLoadingPrinters.value = false
   }
 }
+
+type RemoteStatus = {
+  connected: boolean
+  lastError: string
+  lastChange: number
+}
+
+const remoteStatus = ref<RemoteStatus>({
+  connected: false,
+  lastError: '',
+  lastChange: 0
+})
+const isConnecting = ref(false)
+const isDisconnecting = ref(false)
 
 const toggleServer = async () => {
   if (serverStatus.value === "Running") {
@@ -100,6 +115,42 @@ const clearAllLogs = async () => {
   }
 }
 
+const refreshRemoteStatus = async () => {
+  if (logPort.value <= 0) return
+  try {
+    const resp = await fetch(`http://localhost:${logPort.value}/api/forwarder/status`)
+    if (resp.ok) {
+      remoteStatus.value = await resp.json()
+    }
+  } catch (e) {
+    console.error('Failed to fetch forwarder status', e)
+  }
+}
+
+const connectForwarder = async () => {
+  if (isConnecting.value || remoteStatus.value.connected || logPort.value <= 0) return
+  isConnecting.value = true
+  try {
+    await fetch(`http://localhost:${logPort.value}/api/forwarder/connect`, { method: 'POST' })
+  } catch (e) {
+    console.error('Failed to connect forwarder', e)
+  } finally {
+    isConnecting.value = false
+  }
+}
+
+const disconnectForwarder = async () => {
+  if (isDisconnecting.value || !remoteStatus.value.connected || logPort.value <= 0) return
+  isDisconnecting.value = true
+  try {
+    await fetch(`http://localhost:${logPort.value}/api/forwarder/disconnect`, { method: 'POST' })
+  } catch (e) {
+    console.error('Failed to disconnect forwarder', e)
+  } finally {
+    isDisconnecting.value = false
+  }
+}
+
 onMounted(async () => {
   appMode.value = await GetAppMode()
 
@@ -119,8 +170,32 @@ onMounted(async () => {
     logPollInterval = setInterval(fetchLogs, 1000)
   } else if (appMode.value === "main") {
     // Main mode
+    logPort.value = await GetLogPort()
     await refreshPrinters()
     await toggleServer()
+
+    await refreshRemoteStatus()
+    if (logPort.value > 0 && 'EventSource' in window) {
+      forwarderStream = new EventSource(`http://localhost:${logPort.value}/api/forwarder/stream`)
+      forwarderStream.onmessage = (event) => {
+        try {
+          remoteStatus.value = JSON.parse(event.data)
+        } catch (e) {
+          console.error(e)
+        }
+      }
+      forwarderStream.onerror = () => {
+        if (forwarderStream) {
+          forwarderStream.close()
+          forwarderStream = null
+        }
+        if (forwarderPoll === null) {
+          forwarderPoll = window.setInterval(refreshRemoteStatus, 3000)
+        }
+      }
+    } else {
+      forwarderPoll = window.setInterval(refreshRemoteStatus, 3000)
+    }
     
     // Listen for client count updates
     EventsOn("client_count", (count: number) => {
@@ -144,6 +219,14 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (logPollInterval) clearInterval(logPollInterval)
+  if (forwarderPoll !== null) {
+    window.clearInterval(forwarderPoll)
+    forwarderPoll = null
+  }
+  if (forwarderStream) {
+    forwarderStream.close()
+    forwarderStream = null
+  }
 })
 </script>
 
@@ -206,6 +289,7 @@ onUnmounted(() => {
               <span>{{ clientCount }} {{ t('main.clients') }}</span>
             </div>
           </div>
+
         </header>
 
         <div class="flex-1 overflow-y-auto scrollbar-hide">
@@ -216,7 +300,7 @@ onUnmounted(() => {
               <span class="w-2.5 h-2.5 rounded-full" :class="serverStatus === 'Running' ? 'bg-green-500' : 'bg-red-500'"></span>
               {{ t('main.serverControl') }}
             </h2>
-            
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{{ t('main.port') }}</label>
@@ -248,8 +332,47 @@ onUnmounted(() => {
             </div>
           </div>
 
+          <!-- Forwarder -->
+          <div class="p-4 border-t border-gray-200">
+            <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
+              <i-material-symbols-cloud-sync class="text-gray-600" />
+              {{ t('settings.forwarding') }}
+            </h2>
+
+            <div class="rounded-md border border-gray-200 bg-gray-50 p-3">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div class="min-w-0">
+                  <p class="text-xs font-medium text-gray-500">{{ t('settings.forwarderStatus') }}</p>
+                  <p class="text-sm font-semibold" :class="remoteStatus.connected ? 'text-green-600' : 'text-gray-500'">
+                    {{ remoteStatus.connected ? t('settings.connected') : t('settings.disconnected') }}
+                  </p>
+                  <p v-if="remoteStatus.lastError" class="text-xs text-red-500 mt-1">
+                    <span class="font-medium">{{ t('settings.lastError') }}:</span>
+                    <span class="break-words">{{ remoteStatus.lastError }}</span>
+                  </p>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:shrink-0">
+                  <button
+                    @click="connectForwarder"
+                    :disabled="remoteStatus.connected || isConnecting"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-3 rounded-md shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {{ isConnecting ? t('settings.connecting') : t('settings.connect') }}
+                  </button>
+                  <button
+                    @click="disconnectForwarder"
+                    :disabled="!remoteStatus.connected || isDisconnecting"
+                    class="bg-white hover:bg-gray-50 text-gray-700 font-medium py-1.5 px-3 rounded-md border border-gray-300 shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    {{ isDisconnecting ? t('settings.disconnecting') : t('settings.disconnect') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Printers -->
-          <div class="p-4 border-gray-200">
+          <div class="p-4 border-t border-gray-200">
             <div class="flex justify-between items-center mb-4">
               <h2 class="text-base font-semibold text-gray-800 flex items-center gap-2">
                 <i-material-symbols-print class="text-gray-600" />

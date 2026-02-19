@@ -4,7 +4,7 @@
     "language": "Language",
     "autoStart": "Start on Boot",
     "remotePrint": "Remote Print Server",
-    "forwarding": "Forwarding Service",
+    "forwarding": "Cloud Print Forwarder",
     "serverAddress": "Server Address",
     "authAddress": "Auth Address",
     "wsAddress": "WS Address",

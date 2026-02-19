@@ -4,7 +4,7 @@
     "language": "语言",
     "autoStart": "开机自启动",
     "remotePrint": "远程打印服务器",
-    "forwarding": "转发服务",
+    "forwarding": "云打印中转服务",
     "serverAddress": "服务器地址",
     "authAddress": "鉴权地址",
     "wsAddress": "WS地址",

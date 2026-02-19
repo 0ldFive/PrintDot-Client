@@ -215,28 +215,29 @@ const connectRemote = async () => {
           </label>
         </div>
 
-        <div class="flex items-start justify-between gap-4">
-          <div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div class="min-w-0">
             <p class="text-xs font-medium text-gray-500">{{ t('settings.forwarderStatus') }}</p>
             <p class="text-sm font-semibold" :class="remoteStatus.connected ? 'text-green-600' : 'text-gray-500'">
               {{ remoteStatus.connected ? t('settings.connected') : t('settings.disconnected') }}
             </p>
             <p v-if="remoteStatus.lastError" class="text-xs text-red-500 mt-1">
-              {{ t('settings.lastError') }}: {{ remoteStatus.lastError }}
+              <span class="font-medium">{{ t('settings.lastError') }}:</span>
+              <span class="break-words">{{ remoteStatus.lastError }}</span>
             </p>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:shrink-0">
             <button
               @click="connectRemote"
               :disabled="remoteStatus.connected || isConnecting"
-              class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-3 rounded-md shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-3 rounded-md shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {{ isConnecting ? t('settings.connecting') : t('settings.connect') }}
             </button>
             <button
               @click="disconnectRemote"
               :disabled="!remoteStatus.connected || isDisconnecting"
-              class="bg-white hover:bg-gray-50 text-gray-700 font-medium py-1.5 px-3 rounded-md border border-gray-300 shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              class="bg-white hover:bg-gray-50 text-gray-700 font-medium py-1.5 px-3 rounded-md border border-gray-300 shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {{ isDisconnecting ? t('settings.disconnecting') : t('settings.disconnect') }}
             </button>
