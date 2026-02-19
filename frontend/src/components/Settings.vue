@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { GetSettings, SaveSettings, Restart, GetLogPort } from '../../wailsjs/go/main/App'
+import { GetSettings, SaveSettings, Restart, GetLogPort, GetRemoteForwarderStatus, DisconnectRemoteForwarder } from '../../wailsjs/go/main/App'
 import { WindowHide } from '../../wailsjs/runtime/runtime'
 import { main } from '../../wailsjs/go/models'
 
@@ -11,8 +11,9 @@ const settings = ref(new main.AppSettings({
   language: 'zh-CN',
   autoStart: false,
   remoteServer: '',
-  remoteUser: '',
-  remotePassword: '',
+  remoteClientId: '',
+  remoteSecretKey: '',
+  remoteClientName: '',
   windowWidth: 0,
   windowHeight: 0,
   windowX: 0,
@@ -22,6 +23,29 @@ const settings = ref(new main.AppSettings({
 
 const saveStatus = ref('')
 const logPort = ref(0)
+const isDisconnecting = ref(false)
+
+type RemoteStatus = {
+  connected: boolean
+  lastError: string
+  lastChange: number
+}
+
+const remoteStatus = ref<RemoteStatus>({
+  connected: false,
+  lastError: '',
+  lastChange: 0
+})
+
+let remoteStatusTimer: number | null = null
+
+const refreshRemoteStatus = async () => {
+  try {
+    remoteStatus.value = await GetRemoteForwarderStatus()
+  } catch (e) {
+    console.error(e)
+  }
+}
 
 onMounted(async () => {
   try {
@@ -29,8 +53,17 @@ onMounted(async () => {
     settings.value = s
     locale.value = s.language
     logPort.value = await GetLogPort()
+    await refreshRemoteStatus()
+    remoteStatusTimer = window.setInterval(refreshRemoteStatus, 3000)
   } catch (e) {
     console.error(e)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (remoteStatusTimer !== null) {
+    window.clearInterval(remoteStatusTimer)
+    remoteStatusTimer = null
   }
 })
 
@@ -70,6 +103,19 @@ const saveSettings = async () => {
     isSaving.value = false
   }
 }
+
+const disconnectRemote = async () => {
+  if (isDisconnecting.value || !remoteStatus.value.connected) return
+  isDisconnecting.value = true
+  try {
+    await DisconnectRemoteForwarder()
+    await refreshRemoteStatus()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    isDisconnecting.value = false
+  }
+}
 </script>
 
 <template>
@@ -100,24 +146,49 @@ const saveSettings = async () => {
         </label>
       </div>
 
-      <!-- Remote Server -->
+      <!-- Forwarding Service -->
       <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm space-y-4">
-        <h3 class="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-2">{{ t('settings.remotePrint') }}</h3>
+        <h3 class="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-2">{{ t('settings.forwarding') }}</h3>
+
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-xs font-medium text-gray-500">{{ t('settings.forwarderStatus') }}</p>
+            <p class="text-sm font-semibold" :class="remoteStatus.connected ? 'text-green-600' : 'text-gray-500'">
+              {{ remoteStatus.connected ? t('settings.connected') : t('settings.disconnected') }}
+            </p>
+            <p v-if="remoteStatus.lastError" class="text-xs text-red-500 mt-1">
+              {{ t('settings.lastError') }}: {{ remoteStatus.lastError }}
+            </p>
+          </div>
+          <button
+            @click="disconnectRemote"
+            :disabled="!remoteStatus.connected || isDisconnecting"
+            class="bg-white hover:bg-gray-50 text-gray-700 font-medium py-1.5 px-3 rounded-md border border-gray-300 shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {{ isDisconnecting ? t('settings.disconnecting') : t('settings.disconnect') }}
+          </button>
+        </div>
         
         <div>
           <label class="block text-xs font-medium text-gray-500 mb-1">{{ t('settings.serverAddress') }}</label>
-          <input v-model="settings.remoteServer" type="text" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="https://print.example.com" />
+          <input v-model="settings.remoteServer" type="text" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="http://server:8080" />
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">{{ t('settings.username') }}</label>
-            <input v-model="settings.remoteUser" type="text" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
+            <label class="block text-xs font-medium text-gray-500 mb-1">{{ t('settings.clientId') }}</label>
+            <input v-model="settings.remoteClientId" type="text" disabled class="w-full border border-gray-200 bg-gray-100 text-gray-500 rounded-md p-2 text-sm cursor-not-allowed" :title="t('settings.deviceIdReadonly')" />
+            <p class="text-[11px] text-gray-400 mt-1">{{ t('settings.deviceIdReadonly') }}</p>
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">{{ t('settings.password') }}</label>
-            <input v-model="settings.remotePassword" type="password" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
+            <label class="block text-xs font-medium text-gray-500 mb-1">{{ t('settings.secretKey') }}</label>
+            <input v-model="settings.remoteSecretKey" type="password" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
           </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">{{ t('settings.clientName') }}</label>
+          <input v-model="settings.remoteClientName" type="text" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" />
         </div>
       </div>
 

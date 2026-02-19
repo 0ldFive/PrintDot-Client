@@ -46,6 +46,14 @@ type Bridge struct {
 	onRestart       func()
 	onReload        func()
 	onClientConnect func(string)
+
+	// Remote forwarding
+	remoteMu     sync.Mutex
+	remoteStop   chan struct{}
+	remoteWg     sync.WaitGroup
+	remoteCfg    RemoteConfig
+	remoteConn   *websocket.Conn
+	remoteStatus RemoteForwarderStatus
 }
 
 func NewBridge() *Bridge {
@@ -358,92 +366,97 @@ func (b *Bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		jobName := strings.TrimSpace(req.Job.Name)
-
-		copies := req.Job.Copies
-		if copies <= 0 {
-			copies = 1
-		}
-
-		intervalMs := req.Job.IntervalMs
-
-		// Validate Content is PDF Base64
-		contentToDecode := req.Content
-		if strings.HasPrefix(contentToDecode, "data:") {
-			if idx := strings.Index(contentToDecode, ","); idx != -1 {
-				contentToDecode = contentToDecode[idx+1:]
-			}
-		}
-		decoded, err := base64.StdEncoding.DecodeString(contentToDecode)
-		if err != nil {
-			b.Log("Error decoding Base64 content")
-			c.WriteJSON(Response{Status: "error", Message: "Invalid Base64 content"})
-			continue
-		}
-
-		// Strict PDF check
-		if len(decoded) < 4 || string(decoded[0:4]) != "%PDF" {
-			b.Log("Content is not a valid PDF (missing %PDF header)")
-			c.WriteJSON(Response{Status: "error", Message: "Content must be a PDF file"})
-			continue
-		}
-
-		autoPaper := ""
-		if strings.TrimSpace(req.Paper.Size) == "" {
-			if name, ok := detectPaperFromPDF(decoded); ok {
-				autoPaper = name
-				b.Log(fmt.Sprintf("Auto paper size detected: %s", name))
-			}
-		}
-
-		options := PrintOptions{
-			PageRange:     strings.TrimSpace(req.Pages.Range),
-			PageSet:       strings.TrimSpace(req.Pages.Set),
-			Duplex:        strings.TrimSpace(req.Sides.Mode),
-			ColorMode:     strings.TrimSpace(req.Color.Mode),
-			Paper:         strings.TrimSpace(firstNonEmpty(req.Paper.Size, autoPaper)),
-			Scale:         strings.TrimSpace(req.Layout.Scale),
-			Orientation:   strings.TrimSpace(req.Layout.Orientation),
-			TrayBin:       strings.TrimSpace(req.Tray.Bin),
-			PrintSettings: strings.TrimSpace(req.Sumatra.Settings),
-		}
-
-		runCount := 1
-		perRunCopies := copies
-		if intervalMs > 0 {
-			runCount = copies
-			perRunCopies = 1
-		}
-		options.Copies = perRunCopies
-
-		successCount := 0
-		var lastErr error
-
-		for i := 0; i < runCount; i++ {
-			if i > 0 && intervalMs > 0 {
-				time.Sleep(time.Duration(intervalMs) * time.Millisecond)
-			}
-
-			err = b.printPDF(req.Printer, jobName, decoded, options)
-			if err != nil {
-				lastErr = err
-				b.Log(fmt.Sprintf("Print error (copy %d): %v", i+1, err))
-				break
-			} else {
-				successCount += perRunCopies
-			}
-		}
-
-		if successCount == copies {
-			b.Log("Print success")
-			resp := Response{Status: "success", Message: "Printed successfully"}
+		msg, err := b.processPrintRequest(req)
+		if err == nil {
+			resp := Response{Status: "success", Message: msg}
 			c.WriteJSON(resp)
 		} else {
-			msg := fmt.Sprintf("Printed %d/%d copies. Error: %v", successCount, copies, lastErr)
-			b.Log(msg)
 			c.WriteJSON(Response{Status: "error", Message: msg})
 		}
 	}
+}
+
+func (b *Bridge) processPrintRequest(req PrintRequest) (string, error) {
+	jobName := strings.TrimSpace(req.Job.Name)
+
+	copies := req.Job.Copies
+	if copies <= 0 {
+		copies = 1
+	}
+
+	intervalMs := req.Job.IntervalMs
+
+	contentToDecode := req.Content
+	if strings.HasPrefix(contentToDecode, "data:") {
+		if idx := strings.Index(contentToDecode, ","); idx != -1 {
+			contentToDecode = contentToDecode[idx+1:]
+		}
+	}
+	decoded, err := base64.StdEncoding.DecodeString(contentToDecode)
+	if err != nil {
+		b.Log("Error decoding Base64 content")
+		return "Invalid Base64 content", fmt.Errorf("invalid base64 content")
+	}
+
+	if len(decoded) < 4 || string(decoded[0:4]) != "%PDF" {
+		b.Log("Content is not a valid PDF (missing %PDF header)")
+		return "Content must be a PDF file", fmt.Errorf("invalid pdf")
+	}
+
+	autoPaper := ""
+	if strings.TrimSpace(req.Paper.Size) == "" {
+		if name, ok := detectPaperFromPDF(decoded); ok {
+			autoPaper = name
+			b.Log(fmt.Sprintf("Auto paper size detected: %s", name))
+		}
+	}
+
+	options := PrintOptions{
+		PageRange:     strings.TrimSpace(req.Pages.Range),
+		PageSet:       strings.TrimSpace(req.Pages.Set),
+		Duplex:        strings.TrimSpace(req.Sides.Mode),
+		ColorMode:     strings.TrimSpace(req.Color.Mode),
+		Paper:         strings.TrimSpace(firstNonEmpty(req.Paper.Size, autoPaper)),
+		Scale:         strings.TrimSpace(req.Layout.Scale),
+		Orientation:   strings.TrimSpace(req.Layout.Orientation),
+		TrayBin:       strings.TrimSpace(req.Tray.Bin),
+		PrintSettings: strings.TrimSpace(req.Sumatra.Settings),
+	}
+
+	runCount := 1
+	perRunCopies := copies
+	if intervalMs > 0 {
+		runCount = copies
+		perRunCopies = 1
+	}
+	options.Copies = perRunCopies
+
+	successCount := 0
+	var lastErr error
+
+	for i := 0; i < runCount; i++ {
+		if i > 0 && intervalMs > 0 {
+			time.Sleep(time.Duration(intervalMs) * time.Millisecond)
+		}
+
+		err = b.printPDF(req.Printer, jobName, decoded, options)
+		if err != nil {
+			lastErr = err
+			b.Log(fmt.Sprintf("Print error (copy %d): %v", i+1, err))
+			break
+		} else {
+			successCount += perRunCopies
+		}
+	}
+
+	if successCount == copies {
+		b.Log("Print success")
+		return "Printed successfully", nil
+	}
+
+	msg := fmt.Sprintf("Printed %d/%d copies. Error: %v", successCount, copies, lastErr)
+	b.Log(msg)
+	return msg, fmt.Errorf("print failed")
 }
 
 func firstNonEmpty(values ...string) string {

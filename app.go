@@ -75,6 +75,8 @@ func (a *App) startup(ctx context.Context) {
 			a.LogPort = a.bridge.logPort
 			a.bridge.Log(fmt.Sprintf("Log server started on port %d", a.LogPort))
 		}
+
+		a.bridge.ConfigureRemoteForwarder(a.settings.Get())
 	}
 }
 
@@ -94,6 +96,7 @@ func (a *App) Cleanup() {
 	if a.AppMode == "main" {
 		a.bridge.StopServer()
 		a.bridge.StopLogServer()
+		a.bridge.StopRemoteForwarder()
 
 		// Kill child windows
 		if a.settingsCmd != nil && a.settingsCmd.Process != nil {
@@ -196,6 +199,14 @@ func (a *App) GetLogPort() int {
 	return a.LogPort
 }
 
+func (a *App) GetRemoteForwarderStatus() RemoteForwarderStatus {
+	return a.bridge.GetRemoteForwarderStatus()
+}
+
+func (a *App) DisconnectRemoteForwarder() {
+	a.bridge.StopRemoteForwarder()
+}
+
 func (a *App) CreateMenu(lang string) *menu.Menu {
 	// Ensure locales are loaded
 	LoadLocales(lang)
@@ -248,5 +259,6 @@ func (a *App) Reload() {
 	LoadLocales(a.settings.Get().Language)
 	// Update menu and UI
 	a.UpdateUI(a.settings.Get().Language)
+	a.bridge.ConfigureRemoteForwarder(a.settings.Get())
 	a.bridge.Log("Settings reloaded")
 }

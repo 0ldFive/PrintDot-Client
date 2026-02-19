@@ -12,11 +12,14 @@ import (
 )
 
 type AppSettings struct {
-	Language       string `json:"language"`
-	AutoStart      bool   `json:"autoStart"`
-	RemoteServer   string `json:"remoteServer"`
-	RemoteUser     string `json:"remoteUser"`
-	RemotePassword string `json:"remotePassword"`
+	Language         string `json:"language"`
+	AutoStart        bool   `json:"autoStart"`
+	RemoteServer     string `json:"remoteServer"`
+	RemoteUser       string `json:"remoteUser"`
+	RemotePassword   string `json:"remotePassword"`
+	RemoteClientID   string `json:"remoteClientId"`
+	RemoteSecretKey  string `json:"remoteSecretKey"`
+	RemoteClientName string `json:"remoteClientName"`
 	// Window State
 	WindowWidth  int  `json:"windowWidth"`
 	WindowHeight int  `json:"windowHeight"`
@@ -65,11 +68,35 @@ func (sm *SettingsManager) Load() {
 	if err == nil {
 		json.Unmarshal(data, &sm.settings)
 	}
+
+	if sm.settings.RemoteClientID == "" && sm.settings.RemoteUser != "" {
+		sm.settings.RemoteClientID = sm.settings.RemoteUser
+	}
+	if sm.settings.RemoteSecretKey == "" && sm.settings.RemotePassword != "" {
+		sm.settings.RemoteSecretKey = sm.settings.RemotePassword
+	}
+
+	applyDefaultClientIdentity(&sm.settings)
 }
 
 func (sm *SettingsManager) Save(settings AppSettings) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
+
+	if settings.RemoteClientID == "" && settings.RemoteUser != "" {
+		settings.RemoteClientID = settings.RemoteUser
+	}
+	if settings.RemoteUser == "" && settings.RemoteClientID != "" {
+		settings.RemoteUser = settings.RemoteClientID
+	}
+	if settings.RemoteSecretKey == "" && settings.RemotePassword != "" {
+		settings.RemoteSecretKey = settings.RemotePassword
+	}
+	if settings.RemotePassword == "" && settings.RemoteSecretKey != "" {
+		settings.RemotePassword = settings.RemoteSecretKey
+	}
+
+	applyDefaultClientIdentity(&settings)
 
 	sm.settings = settings
 	data, err := json.MarshalIndent(settings, "", "  ")
@@ -94,4 +121,36 @@ func (sm *SettingsManager) Get() AppSettings {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	return sm.settings
+}
+
+func applyDefaultClientIdentity(settings *AppSettings) {
+	id, name := defaultClientIdentity()
+	if id != "" {
+		settings.RemoteClientID = id
+	}
+	if settings.RemoteClientName == "" {
+		settings.RemoteClientName = name
+	}
+}
+
+func defaultClientIdentity() (string, string) {
+	name := strings.TrimSpace(os.Getenv("COMPUTERNAME"))
+	if name == "" {
+		if host, err := os.Hostname(); err == nil {
+			name = strings.TrimSpace(host)
+		}
+	}
+	if name == "" {
+		name = "PrintDot"
+	}
+
+	id := getNormalizedDeviceID()
+	if id == "" {
+		id = strings.ToLower(name)
+		id = strings.ReplaceAll(id, " ", "-")
+		id = strings.ReplaceAll(id, "_", "-")
+		id = strings.ReplaceAll(id, "/", "-")
+	}
+
+	return id, name
 }
