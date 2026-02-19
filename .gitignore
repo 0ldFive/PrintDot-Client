@@ -1,6 +1,8 @@
 build/bin
 node_modules
 frontend/dist
+frontend/components.d.ts
+frontend/wailsjs/
 
 # Build-time artifacts
 build/windows/installer/resources/*.zip
