@@ -15,6 +15,8 @@ type AppSettings struct {
 	Language          string `json:"language"`
 	AutoStart         bool   `json:"autoStart"`
 	RemoteAutoConnect bool   `json:"remoteAutoConnect"`
+	ServerPort        string `json:"serverPort"`
+	ServerKey         string `json:"serverKey"`
 	RemoteServer      string `json:"remoteServer"`
 	RemoteAuthURL     string `json:"remoteAuthUrl"`
 	RemoteWsURL       string `json:"remoteWsUrl"`
@@ -58,6 +60,7 @@ func NewSettingsManager() *SettingsManager {
 			Language:          defaultLang,
 			AutoStart:         false,
 			RemoteAutoConnect: true,
+			ServerPort:        "1122",
 		},
 	}
 	sm.Load()
@@ -91,6 +94,10 @@ func (sm *SettingsManager) Load() {
 			sm.settings.RemoteAuthURL = loginURL.String()
 			sm.settings.RemoteWsURL = wsURL.String()
 		}
+	}
+
+	if strings.TrimSpace(sm.settings.ServerPort) == "" {
+		sm.settings.ServerPort = "1122"
 	}
 
 	applyDefaultClientIdentity(&sm.settings)

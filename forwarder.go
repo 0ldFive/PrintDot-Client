@@ -29,9 +29,10 @@ type RemoteConfig struct {
 }
 
 type RemoteForwarderStatus struct {
-	Connected  bool   `json:"connected"`
-	LastError  string `json:"lastError"`
-	LastChange int64  `json:"lastChange"`
+	Connected     bool   `json:"connected"`
+	LastError     string `json:"lastError"`
+	LastChange    int64  `json:"lastChange"`
+	AutoReconnect bool   `json:"autoReconnect"`
 }
 
 type remoteLoginResponse struct {
@@ -482,6 +483,9 @@ func (b *Bridge) clearRemoteConn(conn *websocket.Conn) {
 func (b *Bridge) setRemoteConnected(connected bool) {
 	b.remoteMu.Lock()
 	b.remoteStatus.Connected = connected
+	if connected {
+		b.remoteStatus.LastError = ""
+	}
 	b.remoteStatus.LastChange = time.Now().Unix()
 	b.remoteMu.Unlock()
 }

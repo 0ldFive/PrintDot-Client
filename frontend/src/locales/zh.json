@@ -8,7 +8,7 @@
     "serverAddress": "服务器地址",
     "authAddress": "鉴权地址",
     "wsAddress": "WS地址",
-    "autoConnect": "自动连接",
+    "autoConnect": "自动重连",
     "username": "用户名",
     "password": "密码",
     "clientId": "客户端ID",

@@ -8,7 +8,7 @@
     "serverAddress": "Server Address",
     "authAddress": "Auth Address",
     "wsAddress": "WS Address",
-    "autoConnect": "Auto Connect",
+    "autoConnect": "Auto Reconnect",
     "username": "Username",
     "password": "Password",
     "clientId": "Client ID",

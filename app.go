@@ -63,7 +63,9 @@ func (a *App) startup(ctx context.Context) {
 	})
 
 	a.bridge.SetForwarderStatusProvider(func() RemoteForwarderStatus {
-		return a.bridge.GetRemoteForwarderStatus()
+		status := a.bridge.GetRemoteForwarderStatus()
+		status.AutoReconnect = a.settings.Get().RemoteAutoConnect
+		return status
 	})
 	a.bridge.SetForwarderConnectHandler(func() {
 		a.bridge.StartRemoteForwarderWithSettings(a.settings.Get(), true)

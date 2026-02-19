@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
-import { GetPrinters, StartServer, StopServer, GetAppMode, GetLogPort, GetSettings } from '../wailsjs/go/main/App'
+import { GetPrinters, StartServer, StopServer, GetAppMode, GetLogPort, GetSettings, SaveSettings } from '../wailsjs/go/main/App'
 import { EventsOn } from '../wailsjs/runtime/runtime'
 import Help from './components/Help.vue'
 import Settings from './components/Settings.vue'
@@ -19,6 +19,19 @@ const config = reactive({
   port: '1122',
   key: ''
 })
+
+const persistServerSettings = async () => {
+  try {
+    const s = await GetSettings()
+    if (s) {
+      s.serverPort = config.port
+      s.serverKey = config.key
+      await SaveSettings(s)
+    }
+  } catch (e) {
+    console.error('Failed to save server settings', e)
+  }
+}
 
 const connectionUrl = computed(() => {
   let url = `ws://localhost:${config.port}/ws`
@@ -84,6 +97,7 @@ type RemoteStatus = {
   connected: boolean
   lastError: string
   lastChange: number
+  autoReconnect?: boolean
 }
 
 const remoteStatus = ref<RemoteStatus>({
@@ -93,6 +107,7 @@ const remoteStatus = ref<RemoteStatus>({
 })
 const isConnecting = ref(false)
 const isDisconnecting = ref(false)
+const forwarderVisible = ref(false)
 
 const fetchLogs = async () => {
   try {
@@ -127,6 +142,18 @@ const refreshRemoteStatus = async () => {
   }
 }
 
+const updateForwarderVisibility = (settings: any) => {
+  if (!settings) {
+    forwarderVisible.value = false
+    return
+  }
+  const auth = (settings.remoteAuthUrl || '').trim()
+  const ws = (settings.remoteWsUrl || '').trim()
+  const clientId = (settings.remoteClientId || '').trim()
+  const secret = (settings.remoteSecretKey || '').trim()
+  forwarderVisible.value = auth !== '' && ws !== '' && clientId !== '' && secret !== ''
+}
+
 const connectForwarder = async () => {
   if (isConnecting.value || remoteStatus.value.connected || logPort.value <= 0) return
   isConnecting.value = true
@@ -143,7 +170,13 @@ const disconnectForwarder = async () => {
   if (isDisconnecting.value || !remoteStatus.value.connected || logPort.value <= 0) return
   isDisconnecting.value = true
   try {
+    const s = await GetSettings()
+    if (s) {
+      s.remoteAutoConnect = false
+      await SaveSettings(s)
+    }
     await fetch(`http://localhost:${logPort.value}/api/forwarder/disconnect`, { method: 'POST' })
+    await fetch(`http://localhost:${logPort.value}/api/reload`, { method: 'POST' })
   } catch (e) {
     console.error('Failed to disconnect forwarder', e)
   } finally {
@@ -171,6 +204,16 @@ onMounted(async () => {
   } else if (appMode.value === "main") {
     // Main mode
     logPort.value = await GetLogPort()
+    try {
+      const s = await GetSettings()
+      if (s) {
+        config.port = s.serverPort || config.port
+        config.key = s.serverKey || ''
+        updateForwarderVisibility(s)
+      }
+    } catch (e) {
+      console.error('Failed to load server settings', e)
+    }
     await refreshPrinters()
     await toggleServer()
 
@@ -209,6 +252,11 @@ onMounted(async () => {
         const s = await GetSettings()
         if (s && s.language) {
           locale.value = s.language
+        }
+        if (s) {
+          config.port = s.serverPort || config.port
+          config.key = s.serverKey || ''
+          updateForwarderVisibility(s)
         }
       } catch (e) {
         console.error("Failed to reload settings", e)
@@ -304,11 +352,11 @@ onUnmounted(() => {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{{ t('main.port') }}</label>
-                <input v-model="config.port" type="text" class="w-full bg-white border border-gray-300 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all rounded-md" :disabled="serverStatus === 'Running'" />
+                <input v-model="config.port" @change="persistServerSettings" type="text" class="w-full bg-white border border-gray-300 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all rounded-md" :disabled="serverStatus === 'Running'" />
               </div>
               <div>
                 <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">{{ t('main.secretKey') }}</label>
-                <input v-model="config.key" type="password" class="w-full bg-white border border-gray-300 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all rounded-md" :disabled="serverStatus === 'Running'" :placeholder="t('main.placeholderKey')" />
+                <input v-model="config.key" @change="persistServerSettings" type="password" class="w-full bg-white border border-gray-300 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all rounded-md" :disabled="serverStatus === 'Running'" :placeholder="t('main.placeholderKey')" />
               </div>
             </div>
 
@@ -333,42 +381,28 @@ onUnmounted(() => {
           </div>
 
           <!-- Forwarder -->
-          <div class="p-4 border-t border-gray-200">
+          <div v-if="forwarderVisible" class="p-4 border-t border-gray-200">
             <h2 class="text-base font-semibold mb-4 flex items-center gap-2">
               <i-material-symbols-cloud-sync class="text-gray-600" />
+              <span class="w-2.5 h-2.5 rounded-full" :class="remoteStatus.connected ? 'bg-green-500' : 'bg-red-500'"></span>
               {{ t('settings.forwarding') }}
             </h2>
 
-            <div class="rounded-md border border-gray-200 bg-gray-50 p-3">
-              <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div class="min-w-0">
-                  <p class="text-xs font-medium text-gray-500">{{ t('settings.forwarderStatus') }}</p>
-                  <p class="text-sm font-semibold" :class="remoteStatus.connected ? 'text-green-600' : 'text-gray-500'">
-                    {{ remoteStatus.connected ? t('settings.connected') : t('settings.disconnected') }}
-                  </p>
-                  <p v-if="remoteStatus.lastError" class="text-xs text-red-500 mt-1">
-                    <span class="font-medium">{{ t('settings.lastError') }}:</span>
-                    <span class="break-words">{{ remoteStatus.lastError }}</span>
-                  </p>
-                </div>
-                <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:shrink-0">
-                  <button
-                    @click="connectForwarder"
-                    :disabled="remoteStatus.connected || isConnecting"
-                    class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-3 rounded-md shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                  >
-                    {{ isConnecting ? t('settings.connecting') : t('settings.connect') }}
-                  </button>
-                  <button
-                    @click="disconnectForwarder"
-                    :disabled="!remoteStatus.connected || isDisconnecting"
-                    class="bg-white hover:bg-gray-50 text-gray-700 font-medium py-1.5 px-3 rounded-md border border-gray-300 shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                  >
-                    {{ isDisconnecting ? t('settings.disconnecting') : t('settings.disconnect') }}
-                  </button>
-                </div>
-              </div>
-            </div>
+            <button
+              @click="remoteStatus.connected ? disconnectForwarder() : connectForwarder()"
+              :disabled="isConnecting || isDisconnecting"
+              class="w-full py-2 px-4 font-semibold rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              :class="remoteStatus.connected ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'"
+            >
+              <i-material-symbols-stop v-if="remoteStatus.connected" />
+              <i-material-symbols-play-arrow v-else />
+              {{ remoteStatus.connected ? (isDisconnecting ? t('settings.disconnecting') : t('settings.disconnect')) : (isConnecting ? t('settings.connecting') : t('settings.connect')) }}
+            </button>
+
+            <p v-if="remoteStatus.lastError" class="text-xs text-red-500 mt-2">
+              <span class="font-medium">{{ t('settings.lastError') }}:</span>
+              <span class="break-words">{{ remoteStatus.lastError }}</span>
+            </p>
           </div>
 
           <!-- Printers -->
