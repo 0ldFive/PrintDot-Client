@@ -54,6 +54,9 @@ type Bridge struct {
 	remoteCfg    RemoteConfig
 	remoteConn   *websocket.Conn
 	remoteStatus RemoteForwarderStatus
+	forwarderStatusProvider func() RemoteForwarderStatus
+	forwarderConnect        func()
+	forwarderDisconnect     func()
 }
 
 func NewBridge() *Bridge {
@@ -84,6 +87,18 @@ func (b *Bridge) SetReloadCallback(cb func()) {
 
 func (b *Bridge) SetClientConnectCallback(cb func(string)) {
 	b.onClientConnect = cb
+}
+
+func (b *Bridge) SetForwarderStatusProvider(cb func() RemoteForwarderStatus) {
+	b.forwarderStatusProvider = cb
+}
+
+func (b *Bridge) SetForwarderConnectHandler(cb func()) {
+	b.forwarderConnect = cb
+}
+
+func (b *Bridge) SetForwarderDisconnectHandler(cb func()) {
+	b.forwarderDisconnect = cb
 }
 
 func (b *Bridge) updateClientCount(delta int) {
@@ -579,6 +594,10 @@ func (b *Bridge) StartLogServer() error {
 	mux.HandleFunc("/api/logs/clear", b.handleClearLogs)
 	mux.HandleFunc("/api/restart", b.handleRestartRequest)
 	mux.HandleFunc("/api/reload", b.handleReloadRequest)
+	mux.HandleFunc("/api/forwarder/status", b.handleForwarderStatus)
+	mux.HandleFunc("/api/forwarder/connect", b.handleForwarderConnect)
+	mux.HandleFunc("/api/forwarder/disconnect", b.handleForwarderDisconnect)
+	mux.HandleFunc("/api/forwarder/stream", b.handleForwarderStream)
 
 	b.logServer = &http.Server{
 		Handler: mux,
@@ -829,5 +848,105 @@ func (b *Bridge) handleReloadRequest(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(100 * time.Millisecond)
 			b.onReload()
 		}()
+	}
+}
+
+func (b *Bridge) handleForwarderStatus(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	status := RemoteForwarderStatus{}
+	if b.forwarderStatusProvider != nil {
+		status = b.forwarderStatusProvider()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(status)
+}
+
+func (b *Bridge) handleForwarderConnect(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if b.forwarderConnect != nil {
+		b.forwarderConnect()
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (b *Bridge) handleForwarderDisconnect(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if b.forwarderDisconnect != nil {
+		b.forwarderDisconnect()
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (b *Bridge) handleForwarderStream(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	status := RemoteForwarderStatus{}
+	if b.forwarderStatusProvider != nil {
+		status = b.forwarderStatusProvider()
+	}
+	if data, err := json.Marshal(status); err == nil {
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
+	}
+
+	last := status
+	ctx := r.Context()
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			current := RemoteForwarderStatus{}
+			if b.forwarderStatusProvider != nil {
+				current = b.forwarderStatusProvider()
+			}
+			if current != last {
+				if data, err := json.Marshal(current); err == nil {
+					fmt.Fprintf(w, "data: %s\n\n", data)
+					flusher.Flush()
+					last = current
+				}
+			}
+		}
 	}
 }

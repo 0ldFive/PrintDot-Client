@@ -62,6 +62,16 @@ func (a *App) startup(ctx context.Context) {
 		a.Reload()
 	})
 
+	a.bridge.SetForwarderStatusProvider(func() RemoteForwarderStatus {
+		return a.bridge.GetRemoteForwarderStatus()
+	})
+	a.bridge.SetForwarderConnectHandler(func() {
+		a.bridge.StartRemoteForwarderWithSettings(a.settings.Get(), true)
+	})
+	a.bridge.SetForwarderDisconnectHandler(func() {
+		a.bridge.StopRemoteForwarder()
+	})
+
 	// Bind client connect
 	a.bridge.SetClientConnectCallback(func(clientInfo string) {
 		runtime.EventsEmit(ctx, "client_connected", clientInfo)
@@ -205,6 +215,10 @@ func (a *App) GetRemoteForwarderStatus() RemoteForwarderStatus {
 
 func (a *App) DisconnectRemoteForwarder() {
 	a.bridge.StopRemoteForwarder()
+}
+
+func (a *App) ConnectRemoteForwarder() {
+	a.bridge.StartRemoteForwarderWithSettings(a.settings.Get(), true)
 }
 
 func (a *App) CreateMenu(lang string) *menu.Menu {

@@ -21,6 +21,8 @@ const (
 
 type RemoteConfig struct {
 	Server     string
+	AuthURL    string
+	WsURL      string
 	ClientID   string
 	SecretKey  string
 	ClientName string
@@ -43,14 +45,27 @@ type remotePrintTask struct {
 }
 
 func (b *Bridge) ConfigureRemoteForwarder(s AppSettings) {
+	b.StartRemoteForwarderWithSettings(s, false)
+}
+
+func (b *Bridge) StartRemoteForwarderWithSettings(s AppSettings, force bool) {
 	cfg := RemoteConfig{
 		Server:     strings.TrimSpace(s.RemoteServer),
+		AuthURL:    strings.TrimSpace(s.RemoteAuthURL),
+		WsURL:      strings.TrimSpace(s.RemoteWsURL),
 		ClientID:   strings.TrimSpace(firstNonEmpty(s.RemoteClientID, s.RemoteUser)),
 		SecretKey:  strings.TrimSpace(firstNonEmpty(s.RemoteSecretKey, s.RemotePassword)),
 		ClientName: strings.TrimSpace(s.RemoteClientName),
 	}
 
-	if cfg.Server == "" || cfg.ClientID == "" || cfg.SecretKey == "" {
+	if !force && !s.RemoteAutoConnect {
+		b.StopRemoteForwarder()
+		return
+	}
+
+	if (cfg.AuthURL == "" && cfg.Server == "") ||
+		(cfg.WsURL == "" && cfg.Server == "") ||
+		cfg.ClientID == "" || cfg.SecretKey == "" {
 		b.StopRemoteForwarder()
 		return
 	}
@@ -109,7 +124,7 @@ func (b *Bridge) runRemoteForwarder(cfg RemoteConfig, stop <-chan struct{}) {
 }
 
 func (b *Bridge) connectAndServeForwarder(cfg RemoteConfig, stop <-chan struct{}) error {
-	loginURL, wsURL, err := buildRemoteURLs(cfg.Server)
+	loginURL, wsURL, err := buildRemoteURLsFromConfig(cfg)
 	if err != nil {
 		return err
 	}
@@ -330,6 +345,100 @@ func buildRemoteURLs(raw string) (*url.URL, *url.URL, error) {
 	loginURL := loginBase.ResolveReference(&url.URL{Path: "/api/client/login"})
 	wsURL := wsBase.ResolveReference(&url.URL{Path: "/ws/client"})
 	return loginURL, wsURL, nil
+}
+
+func buildRemoteURLsFromConfig(cfg RemoteConfig) (*url.URL, *url.URL, error) {
+	var loginURL *url.URL
+	var wsURL *url.URL
+
+	if cfg.AuthURL != "" {
+		parsed, err := normalizeAuthURL(cfg.AuthURL)
+		if err != nil {
+			return nil, nil, err
+		}
+		loginURL = parsed
+	}
+
+	if cfg.WsURL != "" {
+		parsed, err := normalizeWsURL(cfg.WsURL)
+		if err != nil {
+			return nil, nil, err
+		}
+		wsURL = parsed
+	}
+
+	if (loginURL == nil || wsURL == nil) && cfg.Server != "" {
+		baseLoginURL, baseWsURL, err := buildRemoteURLs(cfg.Server)
+		if err != nil {
+			return nil, nil, err
+		}
+		if loginURL == nil {
+			loginURL = baseLoginURL
+		}
+		if wsURL == nil {
+			wsURL = baseWsURL
+		}
+	}
+
+	if loginURL == nil || wsURL == nil {
+		return nil, nil, fmt.Errorf("auth or ws address is missing")
+	}
+
+	return loginURL, wsURL, nil
+}
+
+func normalizeAuthURL(raw string) (*url.URL, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, fmt.Errorf("auth address is empty")
+	}
+	if !strings.Contains(trimmed, "://") {
+		trimmed = "http://" + trimmed
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Host == "" {
+		return nil, fmt.Errorf("invalid auth address")
+	}
+	if parsed.Path == "" || parsed.Path == "/" {
+		parsed.Path = "/api/client/login"
+	}
+	switch parsed.Scheme {
+	case "ws":
+		parsed.Scheme = "http"
+	case "wss":
+		parsed.Scheme = "https"
+	}
+	return parsed, nil
+}
+
+func normalizeWsURL(raw string) (*url.URL, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, fmt.Errorf("ws address is empty")
+	}
+	if !strings.Contains(trimmed, "://") {
+		trimmed = "ws://" + trimmed
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Host == "" {
+		return nil, fmt.Errorf("invalid ws address")
+	}
+	if parsed.Path == "" || parsed.Path == "/" {
+		parsed.Path = "/ws/client"
+	}
+	switch parsed.Scheme {
+	case "http":
+		parsed.Scheme = "ws"
+	case "https":
+		parsed.Scheme = "wss"
+	}
+	return parsed, nil
 }
 
 func normalizeRemoteBaseURL(raw string) (*url.URL, error) {

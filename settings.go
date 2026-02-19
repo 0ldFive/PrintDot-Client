@@ -14,7 +14,10 @@ import (
 type AppSettings struct {
 	Language         string `json:"language"`
 	AutoStart        bool   `json:"autoStart"`
+	RemoteAutoConnect bool  `json:"remoteAutoConnect"`
 	RemoteServer     string `json:"remoteServer"`
+	RemoteAuthURL    string `json:"remoteAuthUrl"`
+	RemoteWsURL      string `json:"remoteWsUrl"`
 	RemoteUser       string `json:"remoteUser"`
 	RemotePassword   string `json:"remotePassword"`
 	RemoteClientID   string `json:"remoteClientId"`
@@ -54,6 +57,7 @@ func NewSettingsManager() *SettingsManager {
 		settings: AppSettings{
 			Language:  defaultLang,
 			AutoStart: false,
+			RemoteAutoConnect: true,
 		},
 	}
 	sm.Load()
@@ -67,6 +71,12 @@ func (sm *SettingsManager) Load() {
 	data, err := os.ReadFile(sm.filePath)
 	if err == nil {
 		json.Unmarshal(data, &sm.settings)
+		var raw map[string]interface{}
+		if json.Unmarshal(data, &raw) == nil {
+			if _, ok := raw["remoteAutoConnect"]; !ok {
+				sm.settings.RemoteAutoConnect = true
+			}
+		}
 	}
 
 	if sm.settings.RemoteClientID == "" && sm.settings.RemoteUser != "" {
@@ -74,6 +84,13 @@ func (sm *SettingsManager) Load() {
 	}
 	if sm.settings.RemoteSecretKey == "" && sm.settings.RemotePassword != "" {
 		sm.settings.RemoteSecretKey = sm.settings.RemotePassword
+	}
+
+	if sm.settings.RemoteAuthURL == "" && sm.settings.RemoteWsURL == "" && sm.settings.RemoteServer != "" {
+		if loginURL, wsURL, err := buildRemoteURLs(sm.settings.RemoteServer); err == nil {
+			sm.settings.RemoteAuthURL = loginURL.String()
+			sm.settings.RemoteWsURL = wsURL.String()
+		}
 	}
 
 	applyDefaultClientIdentity(&sm.settings)
@@ -94,6 +111,13 @@ func (sm *SettingsManager) Save(settings AppSettings) error {
 	}
 	if settings.RemotePassword == "" && settings.RemoteSecretKey != "" {
 		settings.RemotePassword = settings.RemoteSecretKey
+	}
+
+	if settings.RemoteAuthURL == "" && settings.RemoteWsURL == "" && settings.RemoteServer != "" {
+		if loginURL, wsURL, err := buildRemoteURLs(settings.RemoteServer); err == nil {
+			settings.RemoteAuthURL = loginURL.String()
+			settings.RemoteWsURL = wsURL.String()
+		}
 	}
 
 	applyDefaultClientIdentity(&settings)

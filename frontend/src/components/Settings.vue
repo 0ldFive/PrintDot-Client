@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { GetSettings, SaveSettings, Restart, GetLogPort, GetRemoteForwarderStatus, DisconnectRemoteForwarder } from '../../wailsjs/go/main/App'
+import { GetSettings, SaveSettings, Restart, GetLogPort, GetRemoteForwarderStatus, DisconnectRemoteForwarder, ConnectRemoteForwarder } from '../../wailsjs/go/main/App'
 import { WindowHide } from '../../wailsjs/runtime/runtime'
 import { main } from '../../wailsjs/go/models'
 
@@ -10,7 +10,10 @@ const { t, locale } = useI18n()
 const settings = ref(new main.AppSettings({
   language: 'zh-CN',
   autoStart: false,
+  remoteAutoConnect: true,
   remoteServer: '',
+  remoteAuthUrl: '',
+  remoteWsUrl: '',
   remoteClientId: '',
   remoteSecretKey: '',
   remoteClientName: '',
@@ -23,6 +26,7 @@ const settings = ref(new main.AppSettings({
 
 const saveStatus = ref('')
 const logPort = ref(0)
+const isConnecting = ref(false)
 const isDisconnecting = ref(false)
 
 type RemoteStatus = {
@@ -38,9 +42,17 @@ const remoteStatus = ref<RemoteStatus>({
 })
 
 let remoteStatusTimer: number | null = null
+let remoteStatusStream: EventSource | null = null
 
 const refreshRemoteStatus = async () => {
   try {
+    if (logPort.value > 0) {
+      const resp = await fetch(`http://localhost:${logPort.value}/api/forwarder/status`)
+      if (resp.ok) {
+        remoteStatus.value = await resp.json()
+        return
+      }
+    }
     remoteStatus.value = await GetRemoteForwarderStatus()
   } catch (e) {
     console.error(e)
@@ -54,7 +66,27 @@ onMounted(async () => {
     locale.value = s.language
     logPort.value = await GetLogPort()
     await refreshRemoteStatus()
-    remoteStatusTimer = window.setInterval(refreshRemoteStatus, 3000)
+    if (logPort.value > 0 && 'EventSource' in window) {
+      remoteStatusStream = new EventSource(`http://localhost:${logPort.value}/api/forwarder/stream`)
+      remoteStatusStream.onmessage = (event) => {
+        try {
+          remoteStatus.value = JSON.parse(event.data)
+        } catch (e) {
+          console.error(e)
+        }
+      }
+      remoteStatusStream.onerror = () => {
+        if (remoteStatusStream) {
+          remoteStatusStream.close()
+          remoteStatusStream = null
+        }
+        if (remoteStatusTimer === null) {
+          remoteStatusTimer = window.setInterval(refreshRemoteStatus, 3000)
+        }
+      }
+    } else {
+      remoteStatusTimer = window.setInterval(refreshRemoteStatus, 3000)
+    }
   } catch (e) {
     console.error(e)
   }
@@ -64,6 +96,10 @@ onBeforeUnmount(() => {
   if (remoteStatusTimer !== null) {
     window.clearInterval(remoteStatusTimer)
     remoteStatusTimer = null
+  }
+  if (remoteStatusStream) {
+    remoteStatusStream.close()
+    remoteStatusStream = null
   }
 })
 
@@ -108,12 +144,33 @@ const disconnectRemote = async () => {
   if (isDisconnecting.value || !remoteStatus.value.connected) return
   isDisconnecting.value = true
   try {
-    await DisconnectRemoteForwarder()
+    if (logPort.value > 0) {
+      await fetch(`http://localhost:${logPort.value}/api/forwarder/disconnect`, { method: 'POST' })
+    } else {
+      await DisconnectRemoteForwarder()
+    }
     await refreshRemoteStatus()
   } catch (e) {
     console.error(e)
   } finally {
     isDisconnecting.value = false
+  }
+}
+
+const connectRemote = async () => {
+  if (isConnecting.value || remoteStatus.value.connected) return
+  isConnecting.value = true
+  try {
+    if (logPort.value > 0) {
+      await fetch(`http://localhost:${logPort.value}/api/forwarder/connect`, { method: 'POST' })
+    } else {
+      await ConnectRemoteForwarder()
+    }
+    await refreshRemoteStatus()
+  } catch (e) {
+    console.error(e)
+  } finally {
+    isConnecting.value = false
   }
 }
 </script>
@@ -150,6 +207,14 @@ const disconnectRemote = async () => {
       <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm space-y-4">
         <h3 class="text-sm font-semibold text-gray-800 border-b border-gray-100 pb-2">{{ t('settings.forwarding') }}</h3>
 
+        <div class="flex items-center justify-between">
+          <label class="text-sm font-medium text-gray-700">{{ t('settings.autoConnect') }}</label>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" v-model="settings.remoteAutoConnect" class="sr-only peer">
+            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+          </label>
+        </div>
+
         <div class="flex items-start justify-between gap-4">
           <div>
             <p class="text-xs font-medium text-gray-500">{{ t('settings.forwarderStatus') }}</p>
@@ -160,18 +225,32 @@ const disconnectRemote = async () => {
               {{ t('settings.lastError') }}: {{ remoteStatus.lastError }}
             </p>
           </div>
-          <button
-            @click="disconnectRemote"
-            :disabled="!remoteStatus.connected || isDisconnecting"
-            class="bg-white hover:bg-gray-50 text-gray-700 font-medium py-1.5 px-3 rounded-md border border-gray-300 shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {{ isDisconnecting ? t('settings.disconnecting') : t('settings.disconnect') }}
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              @click="connectRemote"
+              :disabled="remoteStatus.connected || isConnecting"
+              class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-1.5 px-3 rounded-md shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {{ isConnecting ? t('settings.connecting') : t('settings.connect') }}
+            </button>
+            <button
+              @click="disconnectRemote"
+              :disabled="!remoteStatus.connected || isDisconnecting"
+              class="bg-white hover:bg-gray-50 text-gray-700 font-medium py-1.5 px-3 rounded-md border border-gray-300 shadow-sm transition-colors duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {{ isDisconnecting ? t('settings.disconnecting') : t('settings.disconnect') }}
+            </button>
+          </div>
         </div>
         
         <div>
-          <label class="block text-xs font-medium text-gray-500 mb-1">{{ t('settings.serverAddress') }}</label>
-          <input v-model="settings.remoteServer" type="text" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="http://server:8080" />
+          <label class="block text-xs font-medium text-gray-500 mb-1">{{ t('settings.authAddress') }}</label>
+          <input v-model="settings.remoteAuthUrl" type="text" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="http://server:8080/api/client/login" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1">{{ t('settings.wsAddress') }}</label>
+          <input v-model="settings.remoteWsUrl" type="text" class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="ws://server:8081/ws/client" />
         </div>
 
         <div class="grid grid-cols-2 gap-4">
