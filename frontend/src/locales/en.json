@@ -34,7 +34,7 @@
   "main": {
     "title": "PrintDot",
     "subtitle": "WebSocket Printer Bridge",
-    "clients": "Clients",
+    "clients": "connections",
     "serverControl": "Server Control",
     "port": "Port",
     "secretKey": "Secret Key (Optional)",

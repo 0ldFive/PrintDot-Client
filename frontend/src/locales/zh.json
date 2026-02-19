@@ -34,7 +34,7 @@
   "main": {
     "title": "PrintDot",
     "subtitle": "WebSocket 打印桥接器",
-    "clients": "客户端",
+    "clients": "个连接",
     "serverControl": "服务控制",
     "port": "端口",
     "secretKey": "密钥 (可选)",
