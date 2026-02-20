@@ -230,15 +230,15 @@ type PaperSpec struct {
 }
 
 type PrintOptions struct {
-	PageRange     string
-	PageSet       string
-	Duplex        string
-	ColorMode     string
-	Paper         string
-	Scale         string
-	Orientation   string
-	TrayBin       string
-	Copies        int
+	PageRange   string
+	PageSet     string
+	Duplex      string
+	ColorMode   string
+	Paper       string
+	Scale       string
+	Orientation string
+	TrayBin     string
+	Copies      int
 }
 
 type Response struct {
@@ -423,14 +423,14 @@ func (b *Bridge) processPrintRequest(req PrintRequest) (string, error) {
 	}
 
 	options := PrintOptions{
-		PageRange:     strings.TrimSpace(req.Pages.Range),
-		PageSet:       strings.TrimSpace(req.Pages.Set),
-		Duplex:        strings.TrimSpace(req.Sides.Mode),
-		ColorMode:     strings.TrimSpace(req.Color.Mode),
-		Paper:         strings.TrimSpace(firstNonEmpty(req.Paper.Size, autoPaper)),
-		Scale:         strings.TrimSpace(req.Layout.Scale),
-		Orientation:   strings.TrimSpace(req.Layout.Orientation),
-		TrayBin:       strings.TrimSpace(req.Tray.Bin),
+		PageRange:   strings.TrimSpace(req.Pages.Range),
+		PageSet:     strings.TrimSpace(req.Pages.Set),
+		Duplex:      strings.TrimSpace(req.Sides.Mode),
+		ColorMode:   strings.TrimSpace(req.Color.Mode),
+		Paper:       strings.TrimSpace(firstNonEmpty(req.Paper.Size, autoPaper)),
+		Scale:       strings.TrimSpace(req.Layout.Scale),
+		Orientation: strings.TrimSpace(req.Layout.Orientation),
+		TrayBin:     strings.TrimSpace(req.Tray.Bin),
 	}
 
 	runCount := 1
