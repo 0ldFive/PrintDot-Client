@@ -8,10 +8,10 @@
 - 自动获取操作系统已安装的打印机列表。
 - 启动 WebSocket 服务监听打印请求（默认端口 1122）。
 - 支持自定义服务端口和安全密钥（Secret Key）。
-- **仅支持 PDF 打印**：接收 Base64 编码的 PDF 文件内容，并调用系统命令（Windows 使用 SumatraPDF 无感打印 / Unix `lp`）进行打印。
+- **打印内容要求**：接收 Base64 编码的 PDF 文件内容，并调用系统打印命令进行打印。
 - 支持高级打印参数：打印份数、份数间隔，以及更多打印设置。
 - 提供可视化的管理界面，实时查看日志和打印机状态。
-- **独立日志窗口**：支持在浏览器中查看实时系统日志。
+- **日志实时监控**：支持实时查看系统日志。
 
 ---
 
@@ -27,8 +27,7 @@ wails dev
 **注意**: 程序启动时会自动开启 WebSocket 服务（默认端口 1122）。
 
 **Windows 打印说明**:
-- Windows 端使用 **SumatraPDF** 静默打印 PDF。
-- 请将 `SumatraPDF.exe` 放在程序同目录，或加入系统 `PATH`，或设置环境变量 `SUMATRAPDF_PATH` 指向该文件。
+- 请确保 Windows 打印后端可用且程序有权限访问。
 
 ### 2.2 界面配置
 启动后，界面提供以下配置项：
@@ -42,7 +41,7 @@ wails dev
 - **后台运行**: 点击主窗口关闭按钮 (X) 不会退出程序，而是将程序最小化到系统托盘区。程序启动后会在系统托盘区显示图标，可用于快速唤起窗口或退出。
 - **托盘菜单**: 在系统托盘图标上右键单击，可选择 `Show Main Window` 显示主窗口或 `Quit` 退出程序。
 - **打开设置**: 使用菜单栏 `Menu` -> `Settings` (Ctrl+I) 可打开设置窗口。
-- **查看日志**: 使用菜单栏 `Menu` -> `System Logs` (Ctrl+L) 可打开独立的日志窗口查看实时日志.
+- **查看日志**: 使用菜单栏 `Menu` -> `System Logs` (Ctrl+L) 可查看实时日志.
 
 ---
 
@@ -160,8 +159,8 @@ wails dev
 | `tray.bin` | String | **纸盒**：编号或名称。 |
 
 #### 3.2.3.1 平台支持说明
-**Windows (SumatraPDF)**
-- `pages.range` / `pages.set` / `layout.scale` / `layout.orientation` / `color.mode` / `sides.mode` / `paper.size` / `tray.bin` / `job.copies` 会被转换为 `-print-settings`。
+**Windows**
+- `pages.range` / `pages.set` / `layout.scale` / `layout.orientation` / `color.mode` / `sides.mode` / `paper.size` / `tray.bin` / `job.copies` 会被转换为 Windows 打印选项。
 
 **Linux/macOS (lp/CUPS)**
 - `pages.range` -> `-P`。

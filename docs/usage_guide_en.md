@@ -8,10 +8,10 @@ Key Features:
 - Automatically retrieves the list of installed printers in the operating system.
 - Starts a WebSocket service to listen for print requests (default port 1122).
 - Supports custom service ports and security keys (Secret Key).
-- **PDF Printing Only**: Accepts Base64 encoded PDF content and invokes system commands (Windows uses SumatraPDF silent printing / Unix `lp`).
+- **Print Content Requirement**: Accepts Base64 encoded PDF content and invokes system printing commands.
 - Supports advanced print parameters: copies, interval between copies, and more print settings.
 - Provides a visual management interface to view logs and printer status in real-time.
-- **Independent Log Window**: Supports viewing real-time system logs in a separate window.
+- **Real-time Log Monitoring**: View system logs in real time.
 
 ---
 
@@ -23,8 +23,7 @@ You can run the compiled executable file (e.g., `print-dot-client.exe`) directly
 **Note**: The program automatically starts the WebSocket service (default port 1122) upon startup.
 
 **Windows printing note**:
-- Windows uses **SumatraPDF** for silent PDF printing.
-- Place `SumatraPDF.exe` next to the app, add it to `PATH`, or set the `SUMATRAPDF_PATH` environment variable.
+- Ensure the Windows printing backend is available and accessible by the app.
 
 ### 2.2 Interface Configuration
 After startup, the interface provides the following configuration options:
@@ -38,7 +37,7 @@ After startup, the interface provides the following configuration options:
 - **Run in Background**: Clicking the main window close button (X) will not exit the program but minimize it to the system tray. An icon appears in the system tray area, which can be used to quickly recall the window or exit.
 - **Tray Menu**: Right-click the system tray icon to select `Show Main Window` or `Quit`.
 - **Open Settings**: Use the menu bar `Menu` -> `Settings` (Ctrl+I) to open the settings window.
-- **View Logs**: Use the menu bar `Menu` -> `System Logs` (Ctrl+L) to open an independent log window to view real-time logs.
+- **View Logs**: Use the menu bar `Menu` -> `System Logs` (Ctrl+L) to view logs in real time.
 
 ---
 
@@ -156,8 +155,8 @@ The JSON payload is grouped by feature:
 | `tray.bin` | String | **Tray**: number or name. |
 
 #### 3.2.3.1 Platform Support
-**Windows (SumatraPDF)**
-- `pages.range` / `pages.set` / `layout.scale` / `layout.orientation` / `color.mode` / `sides.mode` / `paper.size` / `tray.bin` / `job.copies` are converted to `-print-settings`.
+**Windows**
+- `pages.range` / `pages.set` / `layout.scale` / `layout.orientation` / `color.mode` / `sides.mode` / `paper.size` / `tray.bin` / `job.copies` are converted to Windows print options.
 
 **Linux/macOS (lp/CUPS)**
 - `pages.range` -> `-P`.
