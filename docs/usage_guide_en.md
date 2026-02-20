@@ -194,6 +194,10 @@ The server returns the result of each print:
 }
 ```
 
+**Windows queue tracking note:**
+On Windows, the server waits for the print job to appear in the printer queue and complete before returning `success`.
+If the job does not appear within 120 seconds, or does not complete within 5 minutes, it returns `error` with a timeout message.
+
 ### 3.3 Client Code Example
 
 ```javascript

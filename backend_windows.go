@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
@@ -237,12 +238,173 @@ func (b *Bridge) printPDFPlatform(printerName, filePath string, options PrintOpt
 
 	cmd := exec.Command(sumatraPath, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("sumatra print failed: %v, output: %s", err, strings.TrimSpace(string(output)))
+
+	queueSnapshot, _ := getPrintJobIDs(printerName)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("sumatra print failed to start: %v", err)
+	}
+
+	cmdDone := make(chan error, 1)
+	go func() {
+		cmdDone <- cmd.Wait()
+	}()
+
+	if err := waitForWindowsPrintCompletion(printerName, queueSnapshot, cmdDone); err != nil {
+		return err
 	}
 
 	return nil
+}
+
+type windowsPrintJob struct {
+	Id           int         `json:"Id"`
+	JobStatus    interface{} `json:"JobStatus"`
+	DocumentName string      `json:"DocumentName"`
+}
+
+const (
+	printQueuePollInterval    = 500 * time.Millisecond
+	printQueueAppearTimeout   = 120 * time.Second
+	printQueueCompleteTimeout = 5 * time.Minute
+)
+
+func getPrintJobs(printerName string) ([]windowsPrintJob, error) {
+	printerName = strings.TrimSpace(printerName)
+	if printerName == "" {
+		return nil, fmt.Errorf("printer name is empty")
+	}
+
+	escaped := strings.ReplaceAll(printerName, "'", "''")
+	ps := fmt.Sprintf(`Get-PrintJob -PrinterName '%s' | Select-Object Id,JobStatus,DocumentName | ConvertTo-Json -Depth 3`, escaped)
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", ps)
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	decoded, err := decodeCmdOutput(output)
+	if err != nil {
+		decoded = string(output)
+	}
+	decoded = strings.TrimSpace(decoded)
+	if decoded == "" || decoded == "null" {
+		return nil, nil
+	}
+
+	var list []windowsPrintJob
+	if err := json.Unmarshal([]byte(decoded), &list); err == nil {
+		return list, nil
+	}
+
+	var single windowsPrintJob
+	if err := json.Unmarshal([]byte(decoded), &single); err != nil {
+		return nil, err
+	}
+	return []windowsPrintJob{single}, nil
+}
+
+func getPrintJobIDs(printerName string) (map[int]bool, error) {
+	jobs, err := getPrintJobs(printerName)
+	if err != nil {
+		return nil, err
+	}
+	ids := make(map[int]bool, len(jobs))
+	for _, job := range jobs {
+		if job.Id > 0 {
+			ids[job.Id] = true
+		}
+	}
+	return ids, nil
+}
+
+func waitForWindowsPrintCompletion(printerName string, existingIDs map[int]bool, cmdDone <-chan error) error {
+	appearDeadline := time.Now().Add(printQueueAppearTimeout)
+	completeDeadline := time.Now().Add(printQueueCompleteTimeout)
+
+	queued := false
+	jobID := 0
+
+	for {
+		select {
+		case err := <-cmdDone:
+			if err != nil && !queued {
+				return fmt.Errorf("sumatra print failed: %v", err)
+			}
+		default:
+		}
+
+		now := time.Now()
+		if !queued && now.After(appearDeadline) {
+			return fmt.Errorf("print job not queued within %s", printQueueAppearTimeout)
+		}
+		if queued && now.After(completeDeadline) {
+			return fmt.Errorf("print job not completed within %s", printQueueCompleteTimeout)
+		}
+
+		jobs, err := getPrintJobs(printerName)
+		if err == nil {
+			if !queued {
+				for _, job := range jobs {
+					if !existingIDs[job.Id] {
+						jobID = job.Id
+						queued = true
+						break
+					}
+				}
+			} else {
+				found := false
+				var statusList []string
+				for _, job := range jobs {
+					if job.Id == jobID {
+						found = true
+						statusList = normalizeJobStatus(job.JobStatus)
+						break
+					}
+				}
+				if !found {
+					return nil
+				}
+				if isWindowsJobFailed(statusList) {
+					return fmt.Errorf("print job failed: %s", strings.Join(statusList, ", "))
+				}
+			}
+		}
+
+		time.Sleep(printQueuePollInterval)
+	}
+}
+
+func normalizeJobStatus(status interface{}) []string {
+	switch v := status.(type) {
+	case string:
+		if strings.TrimSpace(v) == "" {
+			return nil
+		}
+		return []string{strings.TrimSpace(v)}
+	case []interface{}:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				if strings.TrimSpace(s) != "" {
+					out = append(out, strings.TrimSpace(s))
+				}
+			}
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func isWindowsJobFailed(statuses []string) bool {
+	for _, status := range statuses {
+		value := strings.ToLower(status)
+		if strings.Contains(value, "error") || strings.Contains(value, "offline") || strings.Contains(value, "paused") {
+			return true
+		}
+	}
+	return false
 }
 
 func findSumatraPDF() (string, error) {
