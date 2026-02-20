@@ -133,9 +133,6 @@ wails dev
   },
   "tray": {
     "bin": "2"                         // [选填] 纸盒编号或名称，例如 2 / Manual
-  },
-  "sumatra": {
-    "settings": "fit,duplex"           // [选填] SumatraPDF 原生 -print-settings 字符串 (Windows)
   }
 }
 ```
@@ -161,12 +158,10 @@ wails dev
 | `sides.mode` | String | **单双面**：`simplex` / `duplex` / `duplexshort` / `duplexlong`。 |
 | `paper.size` | String | **纸张**：如 `A4`、`letter`、`legal`。未提供时会尝试从 PDF 的 MediaBox 自动识别常见尺寸。 |
 | `tray.bin` | String | **纸盒**：编号或名称。 |
-| `sumatra.settings` | String | **SumatraPDF 原生设置**（Windows），会直接传给 `-print-settings`。 |
 
 #### 3.2.3.1 平台支持说明
 **Windows (SumatraPDF)**
 - `pages.range` / `pages.set` / `layout.scale` / `layout.orientation` / `color.mode` / `sides.mode` / `paper.size` / `tray.bin` / `job.copies` 会被转换为 `-print-settings`。
-- `sumatra.settings` 提供时，自动转换会被覆盖。
 
 **Linux/macOS (lp/CUPS)**
 - `pages.range` -> `-P`。
@@ -177,7 +172,6 @@ wails dev
 - `sides.mode` -> `-o sides=...`。
 - `paper.size` -> `-o media=...`。
 - `tray.bin` -> `-o InputSlot=...`（依赖驱动支持）。
-- `sumatra.settings` 不适用于 Linux/macOS。
 
 #### 3.2.4 服务端响应 (Server -> Client)
 服务端会返回每次打印的结果：

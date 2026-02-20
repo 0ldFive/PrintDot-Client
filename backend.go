@@ -223,9 +223,6 @@ type PrintRequest struct {
 	Tray  struct {
 		Bin string `json:"bin"`
 	} `json:"tray"`
-	Sumatra struct {
-		Settings string `json:"settings"`
-	} `json:"sumatra"`
 }
 
 type PaperSpec struct {
@@ -242,7 +239,6 @@ type PrintOptions struct {
 	Orientation   string
 	TrayBin       string
 	Copies        int
-	PrintSettings string
 }
 
 type Response struct {
@@ -435,7 +431,6 @@ func (b *Bridge) processPrintRequest(req PrintRequest) (string, error) {
 		Scale:         strings.TrimSpace(req.Layout.Scale),
 		Orientation:   strings.TrimSpace(req.Layout.Orientation),
 		TrayBin:       strings.TrimSpace(req.Tray.Bin),
-		PrintSettings: strings.TrimSpace(req.Sumatra.Settings),
 	}
 
 	runCount := 1

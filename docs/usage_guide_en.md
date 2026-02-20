@@ -129,9 +129,6 @@ The JSON payload is grouped by feature:
   },
   "tray": {
     "bin": "2"                         // [Optional] Tray number or name, e.g. 2 / Manual
-  },
-  "sumatra": {
-    "settings": "fit,duplex"           // [Optional] SumatraPDF native -print-settings string (Windows)
   }
 }
 ```
@@ -157,12 +154,10 @@ The JSON payload is grouped by feature:
 | `sides.mode` | String | **Duplex**: `simplex` / `duplex` / `duplexshort` / `duplexlong`. |
 | `paper.size` | String | **Paper size**: e.g. `A4`, `letter`, `legal`. If omitted, we try to auto-detect common sizes from PDF MediaBox. |
 | `tray.bin` | String | **Tray**: number or name. |
-| `sumatra.settings` | String | **SumatraPDF native settings** (Windows), passed to `-print-settings`. |
 
 #### 3.2.3.1 Platform Support
 **Windows (SumatraPDF)**
 - `pages.range` / `pages.set` / `layout.scale` / `layout.orientation` / `color.mode` / `sides.mode` / `paper.size` / `tray.bin` / `job.copies` are converted to `-print-settings`.
-- `sumatra.settings` overrides auto-generated settings.
 
 **Linux/macOS (lp/CUPS)**
 - `pages.range` -> `-P`.
@@ -173,7 +168,6 @@ The JSON payload is grouped by feature:
 - `sides.mode` -> `-o sides=...`.
 - `paper.size` -> `-o media=...`.
 - `tray.bin` -> `-o InputSlot=...` (depends on driver support).
-- `sumatra.settings` is not applicable on Linux/macOS.
 
 #### 3.2.4 Server Response (Server -> Client)
 The server returns the result of each print:
