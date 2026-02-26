@@ -1,11 +1,26 @@
-# Print Dot Client
+# PrintDot Client
 
-<img src="build/appicon.png" alt="Print Dot Client Logo" width="96" />
+**中文** | [English](README_EN.md)
+
+<img src="build/appicon.png" alt="PrintDot Client Logo" width="96" />
 
 ## 简介
 
-Print Dot Client 是一款基于 Wails 与 Vue 的桌面打印助手，主打“稳定、快速、好上手”。它将设备发现、连接管理与转发能力打包到一个轻量客户端里，让你用更少的配置成本，获得更高的打印链路稳定性与可用性。
+PrintDot Client 是一款基于 Wails 与 Vue 的桌面打印助手，主打“稳定、快速、好上手”。它将设备发现、连接管理与转发能力打包到一个轻量客户端里，让你用更少的配置成本，获得更高的打印链路稳定性与可用性。
+## 界面预览
 
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/images/1.png" width="300" alt="主界面" /><br />
+      <em>主界面 - 设备状态与连接管理</em>
+    </td>
+    <td align="center">
+      <img src="docs/images/2.png" width="300" alt="设置页面" /><br />
+      <em>设置页面 - 偏好与配置选项</em>
+    </td>
+  </tr>
+</table>
 ## 优势
 
 - 秒级启动与响应，日常操作几乎零等待
