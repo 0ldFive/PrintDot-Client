@@ -57,7 +57,10 @@ jobs:
 
       - name: Build (Windows installer)
         if: matrix.os == 'windows-latest'
-        run: wails build -clean -nsis -platform windows/amd64
+        shell: pwsh
+        run: |
+          choco install nsis -y
+          wails build -clean -nsis -platform windows/amd64
 
       - name: Package (Windows)
         if: matrix.os == 'windows-latest'
