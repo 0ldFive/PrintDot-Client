@@ -6,7 +6,7 @@
 
 ## 简介
 
-PrintDot Client 是一款基于 Wails 与 Vue 的桌面打印助手，主打“稳定、快速、好上手”。它将设备发现、连接管理与转发能力打包到一个轻量客户端里，让你用更少的配置成本，获得更高的打印链路稳定性与可用性。
+PrintDot Client 是一款基于 Wails 与 Vue 的桌面打印助手，主打“稳定、快速、好上手”。它将设备发现、连接管理与转发能力打包到一个轻量客户端里，让你用更少的配置成本，获得更高的打印链路稳定性与可用性。本项目是 [Vue Print Designer](https://github.com/0ldFive/Vue-Print-Designer) 的配套客户端。
 ## 界面预览
 
 <table>

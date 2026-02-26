@@ -6,7 +6,7 @@
 
 ## Introduction
 
-PrintDot Client is a desktop printing assistant built with Wails and Vue, focusing on "stability, speed, and ease of use". It packages device discovery, connection management, and forwarding capabilities into a lightweight client, allowing you to achieve higher printing stability and availability with less configuration effort.
+PrintDot Client is a desktop printing assistant built with Wails and Vue, focusing on "stability, speed, and ease of use". It packages device discovery, connection management, and forwarding capabilities into a lightweight client, allowing you to achieve higher printing stability and availability with less configuration effort. This project is the companion client for [Vue Print Designer](https://github.com/0ldFive/Vue-Print-Designer).
 
 ## Screenshots
 
