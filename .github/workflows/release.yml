@@ -63,7 +63,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -Path build/bin -Filter "*installer*.exe" | Select-Object -First 1
+          $installer = Get-ChildItem -Path build/bin -Recurse -Filter "*installer*.exe" | Select-Object -First 1
           if (-not $installer) {
             Write-Error "No Windows installer or exe found in build/bin"
           }
