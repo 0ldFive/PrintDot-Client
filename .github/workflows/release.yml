@@ -15,10 +15,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - windows-latest
-          - macos-latest
-          - ubuntu-latest
+        include:
+          - os: windows-latest
+            platform: windows/amd64
+            package: windows
+          - os: macos-13
+            platform: darwin/amd64
+            package: macos-amd64
+          - os: macos-14
+            platform: darwin/arm64
+            package: macos-arm64
+          - os: ubuntu-latest
+            platform: linux/amd64
+            package: linux
 
     steps:
       - name: Checkout
@@ -39,17 +48,12 @@ jobs:
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
-      - name: Build (Windows)
+      - name: Build
+        run: wails build -clean -platform ${{ matrix.platform }}
+
+      - name: Build (Windows installer)
         if: matrix.os == 'windows-latest'
         run: wails build -clean -nsis
-
-      - name: Build (macOS)
-        if: matrix.os == 'macos-latest'
-        run: wails build -clean
-
-      - name: Build (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: wails build -clean -platform linux/amd64
 
       - name: Package (Windows)
         if: matrix.os == 'windows-latest'
@@ -65,14 +69,14 @@ jobs:
           Compress-Archive -Path $installer.FullName -DestinationPath build/PrintDot-windows.zip
 
       - name: Package (macOS)
-        if: matrix.os == 'macos-latest'
+        if: startsWith(matrix.os, 'macos')
         run: |
           APP_PATH=$(ls build/bin/*.app | head -n 1)
           if [ -z "$APP_PATH" ]; then
             echo "No .app found in build/bin" >&2
             exit 1
           fi
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" build/PrintDot-macos.zip
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" build/PrintDot-${{ matrix.package }}.zip
 
       - name: Package (Linux)
         if: matrix.os == 'ubuntu-latest'
