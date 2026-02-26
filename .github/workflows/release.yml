@@ -19,12 +19,9 @@ jobs:
           - os: windows-latest
             platform: windows/amd64
             package: windows
-          - os: macos-13
-            platform: darwin/amd64
-            package: macos-amd64
-          - os: macos-14
-            platform: darwin/arm64
-            package: macos-arm64
+          - os: macos-latest
+            platform: darwin/universal
+            package: macos-universal
           - os: ubuntu-22.04
             platform: linux/amd64
             package: linux
@@ -75,7 +72,7 @@ jobs:
           Compress-Archive -Path $installer.FullName -DestinationPath build/PrintDot-windows.zip
 
       - name: Package (macOS)
-        if: startsWith(matrix.os, 'macos')
+        if: matrix.os == 'macos-latest'
         run: |
           APP_PATH=$(find build/bin -maxdepth 2 -type d -name "*.app" | head -n 1)
           if [ -z "$APP_PATH" ]; then
@@ -87,7 +84,26 @@ jobs:
             exit 1
           fi
           echo "Packaging $APP_PATH"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" build/PrintDot-${{ matrix.package }}.zip
+
+          APP_NAME=$(basename "$APP_PATH" .app)
+          BIN_PATH="$APP_PATH/Contents/MacOS/$APP_NAME"
+          if [ ! -f "$BIN_PATH" ]; then
+            echo "Binary not found: $BIN_PATH" >&2
+            exit 1
+          fi
+
+          ARM_APP="build/bin/${APP_NAME}-arm64.app"
+          AMD_APP="build/bin/${APP_NAME}-amd64.app"
+
+          rm -rf "$ARM_APP" "$AMD_APP"
+          cp -R "$APP_PATH" "$ARM_APP"
+          cp -R "$APP_PATH" "$AMD_APP"
+
+          lipo -thin arm64 "$BIN_PATH" -output "$ARM_APP/Contents/MacOS/$APP_NAME"
+          lipo -thin x86_64 "$BIN_PATH" -output "$AMD_APP/Contents/MacOS/$APP_NAME"
+
+          ditto -c -k --sequesterRsrc --keepParent "$ARM_APP" build/PrintDot-macos-arm64.zip
+          ditto -c -k --sequesterRsrc --keepParent "$AMD_APP" build/PrintDot-macos-amd64.zip
 
       - name: Package (Linux)
         if: matrix.os == 'ubuntu-22.04'
