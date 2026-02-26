@@ -48,6 +48,12 @@ jobs:
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
+      - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev pkg-config
+
       - name: Build
         run: wails build -clean -platform ${{ matrix.platform }}
 
@@ -71,11 +77,16 @@ jobs:
       - name: Package (macOS)
         if: startsWith(matrix.os, 'macos')
         run: |
-          APP_PATH=$(ls build/bin/*.app | head -n 1)
+          APP_PATH=$(find build/bin -maxdepth 2 -type d -name "*.app" | head -n 1)
           if [ -z "$APP_PATH" ]; then
             echo "No .app found in build/bin" >&2
             exit 1
           fi
+          if [ ! -d "$APP_PATH/Contents" ]; then
+            echo "Invalid .app bundle: $APP_PATH" >&2
+            exit 1
+          fi
+          echo "Packaging $APP_PATH"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" build/PrintDot-${{ matrix.package }}.zip
 
       - name: Package (Linux)
