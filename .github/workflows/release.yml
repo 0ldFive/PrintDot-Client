@@ -57,15 +57,25 @@ jobs:
 
       - name: Build (Windows installer)
         if: matrix.os == 'windows-latest'
-        run: wails build -clean -nsis
+        run: wails build -clean -nsis -platform windows/amd64
 
       - name: Package (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -Path build/bin -Recurse -Filter "*installer*.exe" | Select-Object -First 1
+          Write-Host "Listing build/bin contents:"
+          Get-ChildItem -Path build/bin -Recurse | Select-Object FullName | Format-Table -AutoSize
+
+          $installer = Get-ChildItem -Path build/bin -Recurse -File -Filter "*.exe" |
+            Where-Object { $_.Name -match "installer|setup" } |
+            Select-Object -First 1
+
           if (-not $installer) {
-            Write-Error "No Windows installer or exe found in build/bin"
+            $installer = Get-ChildItem -Path build/bin -Recurse -File -Filter "*.msi" | Select-Object -First 1
+          }
+
+          if (-not $installer) {
+            Write-Error "No Windows installer found in build/bin"
           }
           $renamed = Join-Path $installer.DirectoryName "PrintDot-setup-windows.exe"
           Copy-Item -Path $installer.FullName -Destination $renamed -Force
