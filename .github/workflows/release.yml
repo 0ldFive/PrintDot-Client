@@ -1,0 +1,106 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+          - ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        run: wails build -clean -nsis
+
+      - name: Build (macOS)
+        if: matrix.os == 'macos-latest'
+        run: wails build -clean
+
+      - name: Build (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: wails build -clean -platform linux/amd64
+
+      - name: Package (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path build/bin -Filter "*installer*.exe" | Select-Object -First 1
+          if (-not $installer) {
+            $installer = Get-ChildItem -Path build/bin -Filter "*.exe" | Select-Object -First 1
+          }
+          if (-not $installer) {
+            Write-Error "No Windows installer or exe found in build/bin"
+          }
+          Compress-Archive -Path $installer.FullName -DestinationPath build/PrintDot-windows.zip
+
+      - name: Package (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          APP_PATH=$(ls build/bin/*.app | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app found in build/bin" >&2
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" build/PrintDot-macos.zip
+
+      - name: Package (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          if [ ! -d "build/bin" ]; then
+            echo "build/bin not found" >&2
+            exit 1
+          fi
+          tar -czf build/PrintDot-linux.tar.gz -C build/bin .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrintDot-${{ matrix.os }}
+          path: build/PrintDot-*
+
+  release:
+    name: create-release
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
