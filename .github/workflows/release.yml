@@ -25,7 +25,7 @@ jobs:
           - os: macos-14
             platform: darwin/arm64
             package: macos-arm64
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             platform: linux/amd64
             package: linux
 
