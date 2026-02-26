@@ -60,6 +60,10 @@ jobs:
         shell: pwsh
         run: |
           choco install nsis -y
+          $env:Path = "C:\Program Files (x86)\NSIS;" + $env:Path
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+            Write-Error "makensis not found after NSIS install"
+          }
           wails build -clean -nsis -platform windows/amd64
 
       - name: Package (Windows)
