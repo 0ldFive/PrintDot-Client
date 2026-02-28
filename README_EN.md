@@ -1,8 +1,12 @@
+<div align="center">
+
 # PrintDot Client
 
 [中文](README.md) | **English**
 
 <img src="build/appicon.png" alt="PrintDot Client Logo" width="96" />
+
+</div>
 
 ## Introduction
 
