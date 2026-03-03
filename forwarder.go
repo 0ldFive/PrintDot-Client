@@ -269,12 +269,18 @@ func (b *Bridge) reportPrinters(conn *websocket.Conn) error {
 
 	list := make([]map[string]interface{}, 0, len(printers))
 	for _, p := range printers {
+		caps, capsErr := b.GetPrinterCapabilities(p.Name)
+		if capsErr != nil {
+			b.Log(fmt.Sprintf("Get printer capabilities failed: %s: %v", p.Name, capsErr))
+			caps = map[string]interface{}{}
+		}
 		list = append(list, map[string]interface{}{
 			"printer_name":     p.Name,
 			"printer_type":     "system",
 			"paper_spec":       "",
 			"is_ready":         true,
 			"supported_format": "pdf",
+			"capabilities":     caps,
 		})
 	}
 
